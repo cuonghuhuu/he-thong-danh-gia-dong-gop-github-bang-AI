@@ -1,2 +1,11 @@
-# he-thong-danh-gia-dong-gop-github-bang-AI
-Phan tich va danh gia dong gop cua contributor tren GitHub bang metrics va AI
+# GitHub Contributor Analyzer
+
+Tool phân tích mức độ đóng góp của contributor trong GitHub repository.
+
+## Features
+- Phân tích commit
+- Tính contribution score
+- AI summary
+
+## Run
+python app.py
