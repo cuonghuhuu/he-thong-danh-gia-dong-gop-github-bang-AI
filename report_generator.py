@@ -1,4 +1,4 @@
-def tao_bao_cao_markdown(danh_sach_xep_hang):
+def tao_bao_cao_markdown(danh_sach_xep_hang, tong_ket_repo="Chua co tong ket"):
     """
     Tạo nội dung báo cáo Markdown, có căn đều độ rộng các cột
     """
@@ -11,6 +11,7 @@ def tao_bao_cao_markdown(danh_sach_xep_hang):
         "Files",
         "Total changes",
         "Score",
+        "Contribution type",
         "AI summary"
     ]
 
@@ -26,6 +27,7 @@ def tao_bao_cao_markdown(danh_sach_xep_hang):
             str(item.get("changed_files_count", 0)),
             str(item.get("total_changes", 0)),
             f"{item.get('baseline_score', 0):.2f}",
+            str(item.get("contribution_type", "Chua xac dinh")),
             str(item.get("ai_summary", "Chua co nhan xet"))
         ]
         du_lieu_bang.append(dong)
@@ -49,6 +51,8 @@ def tao_bao_cao_markdown(danh_sach_xep_hang):
         return ket_qua
 
     noi_dung = "# Bao cao dong gop contributor\n\n"
+    noi_dung += "## Tong ket repo\n\n"
+    noi_dung += f"{tong_ket_repo}\n\n"
     noi_dung += "## Bang xep hang\n\n"
 
     noi_dung += tao_dong(tieu_de) + "\n"

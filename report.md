@@ -1,8 +1,11 @@
 # Bao cao dong gop contributor
 
+## Tong ket repo
+
+Repository hien tai chu yeu do mot contributor phu trach.
+
 ## Bang xep hang
 
-| Hang | Tac gia      | Commit | Additions | Deletions | Files | Total changes | Score | AI summary                                        |
-|------|--------------|--------|-----------|-----------|-------|---------------|-------|---------------------------------------------------|
-| 1    | Văn Cường    | 2      | 220       | 2         | 2     | 222           | 90.00 | Co dong gop on dinh trong repository.             |
-| 2    | Le Van Cuong | 3      | 28        | 2         | 9     | 30            | 15.00 | Pham vi anh huong rong, tham gia tren nhieu file. |
+| Hang | Tac gia        | Commit | Additions | Deletions | Files | Total changes | Score | Contribution type | AI summary                                        |
+|------|----------------|--------|-----------|-----------|-------|---------------|-------|-------------------|---------------------------------------------------|
+| 1    | dangkhanhtrung | 2      | 1083      | 0         | 35    | 1083          | 3.95  | feature-focused   | Pham vi anh huong rong, tham gia tren nhieu file. |

@@ -47,9 +47,11 @@ def tinh_chi_so_contributor(du_lieu_gom):
         ket_qua.append(thong_tin)
 
     return ket_qua
+import math
+
 def tinh_diem_dong_gop_co_ban(danh_sach_thong_ke):
     """
-    Tính điểm đóng góp cơ bản cho từng contributor
+    Tính điểm đóng góp cải tiến (dùng log để tránh bias)
     """
     for item in danh_sach_thong_ke:
         commit_count = item.get("commit_count", 0)
@@ -57,9 +59,9 @@ def tinh_diem_dong_gop_co_ban(danh_sach_thong_ke):
         changed_files_count = item.get("changed_files_count", 0)
 
         diem = (
-            commit_count * 0.4 +
-            total_changes * 0.4 +
-            changed_files_count * 0.2
+            math.log(commit_count + 1) * 0.4 +
+            math.log(total_changes + 1) * 0.4 +
+            math.log(changed_files_count + 1) * 0.2
         )
 
         item["baseline_score"] = diem

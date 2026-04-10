@@ -1,5 +1,5 @@
 from github_client import lay_toan_bo_commit_chi_tiet
-from ai_summary import tao_nhan_xet_don_gian
+from ai_summary import tao_nhan_xet_don_gian, tao_tong_ket_repo
 from analyzer import (
     gom_commit_theo_contributor,
     tinh_chi_so_contributor,
@@ -12,20 +12,35 @@ import os
 
 load_dotenv()
 
-
-def main():
+def lay_thong_tin_repo():
+    """
+    Lấy thông tin repo theo 2 chế độ:
+    - Local: nhập từ bàn phím
+    - CI: đọc từ biến môi trường
+    """
     owner = os.getenv("REPO_OWNER")
     repo = os.getenv("REPO_NAME")
 
+    if owner and repo:
+        return owner, repo
+
+    print("Khong tim thay REPO_OWNER va REPO_NAME trong moi truong.")
+    owner = input("Nhap REPO_OWNER: ").strip()
+    repo = input("Nhap REPO_NAME: ").strip()
+
+    return owner, repo
+
+def main():
+    owner, repo = lay_thong_tin_repo()
     danh_sach_commit = lay_toan_bo_commit_chi_tiet(owner, repo, so_luong=5)
     du_lieu_gom = gom_commit_theo_contributor(danh_sach_commit)
     thong_ke = tinh_chi_so_contributor(du_lieu_gom)
     thong_ke = tinh_diem_dong_gop_co_ban(thong_ke)
     thong_ke = xep_hang_contributor(thong_ke)
     thong_ke = tao_nhan_xet_don_gian(thong_ke)
+    tong_ket_repo = tao_tong_ket_repo(thong_ke)
 
-    noi_dung_bao_cao = tao_bao_cao_markdown(thong_ke)
-
+    noi_dung_bao_cao = tao_bao_cao_markdown(thong_ke, tong_ket_repo)
     with open("report.md", "w", encoding="utf-8") as f:
         f.write(noi_dung_bao_cao)
 
