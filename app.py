@@ -1,35 +1,35 @@
 import os
+import sys
+from pathlib import Path
 
 from dotenv import load_dotenv
 
-from ai_summary import tao_nhan_xet_don_gian, tao_tong_ket_repo
-from analyzer import (
-    gom_commit_theo_contributor,
-    tinh_chi_so_contributor,
-    tinh_diem_dong_gop_co_ban,
-    xep_hang_contributor
-)
-from github_client import lay_danh_sach_commit_chi_tiet
+from analyzer import phan_tich_repo
 from report_generator import tao_bao_cao_markdown
 
 
 DEFAULT_SO_LUONG_COMMIT = 30
-TEN_FILE_BAO_CAO = "report.md"
+TEN_FILE_BAO_CAO_CI = "report.md"
 
 
-def lay_thong_tin_repo():
+def lay_so_luong_commit_tu_env():
+    try:
+        so_luong = int(os.getenv("SO_LUONG_COMMIT", str(DEFAULT_SO_LUONG_COMMIT)))
+    except ValueError:
+        return DEFAULT_SO_LUONG_COMMIT
+
+    return so_luong if so_luong > 0 else DEFAULT_SO_LUONG_COMMIT
+
+
+def chay_cli():
     """
-    Lay thong tin repo theo 2 che do:
-    - Local: nhap tu ban phim khi chua co env
-    - CI: doc tu bien moi truong
+    Giu flow terminal cho GitHub Actions hoac khi can chay nhanh bang --cli.
+    Chay app.py binh thuong tren may local van mo giao dien PyQt6.
     """
     owner = os.getenv("REPO_OWNER", "").strip()
     repo = os.getenv("REPO_NAME", "").strip()
-
-    if owner and repo:
-        return owner, repo
-
-    print("Khong tim thay REPO_OWNER va REPO_NAME trong moi truong.")
+    token = os.getenv("GITHUB_TOKEN", "").strip()
+    so_luong_commit = lay_so_luong_commit_tu_env()
 
     if not owner:
         owner = input("Nhap REPO_OWNER: ").strip()
@@ -37,89 +37,37 @@ def lay_thong_tin_repo():
     if not repo:
         repo = input("Nhap REPO_NAME: ").strip()
 
-    return owner, repo
+    ket_qua = phan_tich_repo(owner, repo, so_luong_commit=so_luong_commit, token=token)
+    noi_dung_bao_cao = tao_bao_cao_markdown(ket_qua)
+
+    report_path = Path(__file__).resolve().parent / TEN_FILE_BAO_CAO_CI
+    report_path.write_text(noi_dung_bao_cao, encoding="utf-8")
+    print(f"Da tao file {report_path}")
 
 
-def lay_so_luong_commit():
-    """
-    Lay so luong commit can phan tich tu bien moi truong.
-    Neu du lieu khong hop le thi dung gia tri mac dinh.
-    """
-    gia_tri = os.getenv("SO_LUONG_COMMIT", "").strip()
+def chay_gui():
+    from PyQt6.QtWidgets import QApplication
 
-    if not gia_tri:
-        return DEFAULT_SO_LUONG_COMMIT
+    from main_window import MainWindow
 
-    try:
-        so_luong = int(gia_tri)
-    except ValueError:
-        print(
-            "SO_LUONG_COMMIT khong hop le. "
-            f"Su dung gia tri mac dinh {DEFAULT_SO_LUONG_COMMIT}."
-        )
-        return DEFAULT_SO_LUONG_COMMIT
+    app = QApplication(sys.argv)
+    app.setApplicationName("GitHub AI Contributor Analyzer")
 
-    if so_luong <= 0:
-        print(
-            "SO_LUONG_COMMIT phai lon hon 0. "
-            f"Su dung gia tri mac dinh {DEFAULT_SO_LUONG_COMMIT}."
-        )
-        return DEFAULT_SO_LUONG_COMMIT
+    window = MainWindow()
+    window.show()
 
-    return so_luong
-
-
-def phan_tich_repo_va_tao_bao_cao(owner, repo, so_luong_commit):
-    """
-    Chay business flow chinh va tra ve noi dung bao cao Markdown.
-    """
-    danh_sach_commit = lay_danh_sach_commit_chi_tiet(
-        owner,
-        repo,
-        so_luong=so_luong_commit
-    )
-    du_lieu_gom = gom_commit_theo_contributor(danh_sach_commit)
-    thong_ke = tinh_chi_so_contributor(du_lieu_gom)
-    thong_ke_co_diem = tinh_diem_dong_gop_co_ban(thong_ke)
-    thong_ke_xep_hang = xep_hang_contributor(thong_ke_co_diem)
-    thong_ke_co_nhan_xet = tao_nhan_xet_don_gian(thong_ke_xep_hang)
-    tong_ket_repo = tao_tong_ket_repo(thong_ke_co_nhan_xet)
-
-    return tao_bao_cao_markdown(thong_ke_co_nhan_xet, tong_ket_repo)
-
-
-def in_noi_dung_bao_cao(noi_dung_bao_cao):
-    """
-    In bao cao ra man hinh neu console ho tro.
-    Tren mot so may Windows, print Unicode co the gay crash.
-    """
-    try:
-        print(noi_dung_bao_cao)
-    except UnicodeEncodeError:
-        print("Bao cao da duoc ghi vao report.md. Console hien tai khong ho tro day du Unicode.")
+    sys.exit(app.exec())
 
 
 def main():
-    load_dotenv()
+    project_dir = Path(__file__).resolve().parent
+    load_dotenv(project_dir / ".env")
 
-    owner, repo = lay_thong_tin_repo()
-    so_luong_commit = lay_so_luong_commit()
-
-    try:
-        noi_dung_bao_cao = phan_tich_repo_va_tao_bao_cao(
-            owner,
-            repo,
-            so_luong_commit
-        )
-    except RuntimeError as exc:
-        print(f"Loi khi phan tich repository: {exc}")
+    if "--cli" in sys.argv or os.getenv("GITHUB_ACTIONS", "").lower() == "true":
+        chay_cli()
         return
 
-    with open(TEN_FILE_BAO_CAO, "w", encoding="utf-8") as f:
-        f.write(noi_dung_bao_cao)
-
-    print(f"Da tao file {TEN_FILE_BAO_CAO}")
-    in_noi_dung_bao_cao(noi_dung_bao_cao)
+    chay_gui()
 
 
 if __name__ == "__main__":

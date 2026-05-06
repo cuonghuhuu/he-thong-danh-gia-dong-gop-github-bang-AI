@@ -1,71 +1,141 @@
 import os
+import time
+from datetime import datetime
 
 import requests
 
 
-TIMEOUT_GITHUB_API = 10
+TIMEOUT_GITHUB_API = 15
 SO_COMMIT_TOI_DA_MOI_TRANG = 100
 GITHUB_API_ACCEPT = "application/vnd.github.v3+json"
 
 
-def tao_headers():
+class GitHubAPIError(RuntimeError):
+    """Loi ro nghia hon khi goi GitHub API."""
+
+    def __init__(self, message, status_code=None, detail=None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.detail = detail
+
+
+def tao_headers(token=None):
     """
     Tao headers de goi GitHub API.
-    Chi them Authorization khi thuc su co token.
+    Token co the lay tu giao dien hoac bien moi truong GITHUB_TOKEN.
     """
-    headers = {
-        "Accept": GITHUB_API_ACCEPT
-    }
+    headers = {"Accept": GITHUB_API_ACCEPT}
+    token = (token or os.getenv("GITHUB_TOKEN", "")).strip()
 
-    token = os.getenv("GITHUB_TOKEN", "").strip()
     if token:
-        headers["Authorization"] = f"token {token}"
+        headers["Authorization"] = f"Bearer {token}"
 
     return headers
 
 
-def goi_github_api_json(url, params=None):
+def rut_gon_noi_dung_loi(response):
+    noi_dung = response.text.strip()
+    if len(noi_dung) > 300:
+        noi_dung = noi_dung[:300] + "..."
+    return noi_dung
+
+
+def tao_thong_bao_loi_http(response, url):
+    status_code = response.status_code
+    noi_dung_loi = rut_gon_noi_dung_loi(response)
+
+    if status_code == 401:
+        return "GitHub Token khong hop le hoac da het hieu luc. Hay kiem tra lai token."
+
+    if status_code == 403:
+        remaining = response.headers.get("X-RateLimit-Remaining")
+        reset_time = response.headers.get("X-RateLimit-Reset")
+
+        if remaining == "0":
+            try:
+                reset_text = datetime.fromtimestamp(int(reset_time)).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                )
+            except (TypeError, ValueError):
+                reset_text = "khong ro thoi gian"
+
+            return f"GitHub API da bi gioi han request. Co the thu lai sau: {reset_text}."
+
+        return (
+            "GitHub API tu choi truy cap. Token co the thieu quyen, "
+            "repository rieng tu, hoac request bi chan tam thoi."
+        )
+
+    if status_code == 404:
+        return (
+            "Khong tim thay repository hoac ban khong co quyen truy cap. "
+            "Hay kiem tra Owner, Repository va Token."
+        )
+
+    if status_code == 409:
+        return "Repository khong co commit nao de phan tich."
+
+    if status_code == 422:
+        return "Tham so Owner/Repository khong hop le hoac repository khong co du lieu phu hop."
+
+    return (
+        f"GitHub API tra ve loi {status_code}. URL: {url}. "
+        f"Noi dung: {noi_dung_loi}"
+    )
+
+
+def goi_github_api_json(url, token=None, params=None):
     """
     Goi GitHub API va tra ve JSON.
-    Neu co loi mang, loi HTTP hoac loi parse JSON thi raise RuntimeError.
+    Neu co loi mang, HTTP hoac parse JSON thi raise GitHubAPIError.
     """
     try:
         response = requests.get(
             url,
-            headers=tao_headers(),
+            headers=tao_headers(token),
             params=params,
-            timeout=TIMEOUT_GITHUB_API
+            timeout=TIMEOUT_GITHUB_API,
         )
-    except requests.RequestException as exc:
-        raise RuntimeError(
-            f"Khong the ket noi GitHub API. URL: {url}. Loi: {exc}"
+    except requests.Timeout as exc:
+        raise GitHubAPIError(
+            "Ket noi GitHub API qua cham. Hay kiem tra internet roi thu lai."
         ) from exc
+    except requests.ConnectionError as exc:
+        raise GitHubAPIError(
+            "Khong co internet hoac khong ket noi duoc toi GitHub API."
+        ) from exc
+    except requests.RequestException as exc:
+        raise GitHubAPIError(f"Khong the ket noi GitHub API. Loi: {exc}") from exc
 
     if response.status_code != 200:
-        noi_dung_loi = response.text.strip()
-        if len(noi_dung_loi) > 300:
-            noi_dung_loi = noi_dung_loi[:300] + "..."
-
-        raise RuntimeError(
-            "GitHub API tra ve loi "
-            f"{response.status_code}. URL: {url}. Noi dung: {noi_dung_loi}"
+        raise GitHubAPIError(
+            tao_thong_bao_loi_http(response, url),
+            status_code=response.status_code,
+            detail=rut_gon_noi_dung_loi(response),
         )
 
     try:
         return response.json()
     except ValueError as exc:
-        raise RuntimeError(
-            f"GitHub API khong tra ve JSON hop le. URL: {url}"
-        ) from exc
+        raise GitHubAPIError(f"GitHub API khong tra ve JSON hop le. URL: {url}") from exc
+
+
+def lay_thong_tin_repository(owner, repo, token=None):
+    url = f"https://api.github.com/repos/{owner}/{repo}"
+    du_lieu = goi_github_api_json(url, token=token)
+    return {
+        "id": du_lieu.get("id"),
+        "name": du_lieu.get("name", repo),
+        "full_name": du_lieu.get("full_name", f"{owner}/{repo}"),
+        "default_branch": du_lieu.get("default_branch", ""),
+        "private": du_lieu.get("private", False),
+    }
 
 
 def lay_thong_tin_contributor(commit):
     """
     Tach khoa contributor noi bo va ten hien thi.
-
-    - khoa_contributor uu tien author.login
-    - fallback sang ten tac gia trong commit
-    - neu khong co du lieu thi dung 'Khong xac dinh'
+    Uu tien GitHub login, fallback sang ten tac gia trong commit.
     """
     thong_tin_author = commit.get("author") or {}
     thong_tin_commit_author = commit.get("commit", {}).get("author", {}) or {}
@@ -74,12 +144,12 @@ def lay_thong_tin_contributor(commit):
     ten_commit_author = thong_tin_commit_author.get("name")
 
     khoa_contributor = login or ten_commit_author or "Khong xac dinh"
-    ten_hien_thi = ten_commit_author or login or "Khong xac dinh"
+    ten_hien_thi = login or ten_commit_author or "Khong xac dinh"
 
     return khoa_contributor, ten_hien_thi
 
 
-def lay_danh_sach_commit(owner, repo, so_luong=30):
+def lay_danh_sach_commit(owner, repo, so_luong=30, token=None):
     """
     Lay mot phan danh sach commit tu GitHub theo so_luong.
     Ham nay khong co y nghia la lay toan bo lich su commit.
@@ -97,10 +167,8 @@ def lay_danh_sach_commit(owner, repo, so_luong=30):
 
         du_lieu = goi_github_api_json(
             url,
-            params={
-                "per_page": so_commit_tren_trang,
-                "page": trang_hien_tai
-            }
+            token=token,
+            params={"per_page": so_commit_tren_trang, "page": trang_hien_tai},
         )
 
         if not du_lieu:
@@ -108,14 +176,14 @@ def lay_danh_sach_commit(owner, repo, so_luong=30):
 
         for commit in du_lieu:
             khoa_contributor, ten_hien_thi = lay_thong_tin_contributor(commit)
-
-            thong_tin = {
-                "sha": commit.get("sha"),
-                "khoa_contributor": khoa_contributor,
-                "ten_hien_thi": ten_hien_thi,
-                "message": commit.get("commit", {}).get("message")
-            }
-            danh_sach_commit.append(thong_tin)
+            danh_sach_commit.append(
+                {
+                    "sha": commit.get("sha"),
+                    "khoa_contributor": khoa_contributor,
+                    "ten_hien_thi": ten_hien_thi,
+                    "message": commit.get("commit", {}).get("message", ""),
+                }
+            )
 
         if len(du_lieu) < so_commit_tren_trang:
             break
@@ -125,19 +193,17 @@ def lay_danh_sach_commit(owner, repo, so_luong=30):
     return danh_sach_commit[:so_luong]
 
 
-def lay_chi_tiet_commit(owner, repo, sha):
-    """
-    Lay thong tin chi tiet cua mot commit.
-    """
+def lay_chi_tiet_commit(owner, repo, sha, token=None):
+    """Lay thong tin chi tiet cua mot commit."""
     url = f"https://api.github.com/repos/{owner}/{repo}/commits/{sha}"
-    du_lieu = goi_github_api_json(url)
+    du_lieu = goi_github_api_json(url, token=token)
 
-    stats = du_lieu.get("stats", {})
-    files = du_lieu.get("files", [])
+    stats = du_lieu.get("stats", {}) or {}
+    files = du_lieu.get("files", []) or []
 
     danh_sach_file = []
-    for file in files:
-        ten_file = file.get("filename")
+    for file_info in files:
+        ten_file = file_info.get("filename")
         if ten_file:
             danh_sach_file.append(ten_file)
 
@@ -145,41 +211,52 @@ def lay_chi_tiet_commit(owner, repo, sha):
         "sha": du_lieu.get("sha"),
         "additions": stats.get("additions", 0),
         "deletions": stats.get("deletions", 0),
-        "changed_files": danh_sach_file
+        "changed_files": danh_sach_file,
     }
 
 
-def lay_danh_sach_commit_chi_tiet(owner, repo, so_luong=30):
-    """
-    Lay danh sach commit kem thong tin chi tiet theo so_luong.
-    """
-    danh_sach_commit = lay_danh_sach_commit(owner, repo, so_luong=so_luong)
+def lay_danh_sach_commit_chi_tiet(
+    owner,
+    repo,
+    so_luong=30,
+    token=None,
+    progress_callback=None,
+):
+    """Lay danh sach commit kem additions, deletions va changed files."""
+    danh_sach_commit = lay_danh_sach_commit(owner, repo, so_luong=so_luong, token=token)
     ket_qua = []
+    tong_commit = len(danh_sach_commit)
 
-    for commit in danh_sach_commit:
+    for index, commit in enumerate(danh_sach_commit, start=1):
         sha = commit.get("sha")
         if not sha:
             continue
 
-        chi_tiet = lay_chi_tiet_commit(owner, repo, sha)
+        if progress_callback:
+            progress_callback(f"Dang lay chi tiet commit {index}/{tong_commit}...")
 
-        commit_day_du = {
-            "sha": sha,
-            "khoa_contributor": commit.get("khoa_contributor", "Khong xac dinh"),
-            "ten_hien_thi": commit.get("ten_hien_thi", "Khong xac dinh"),
-            "message": commit.get("message"),
-            "additions": chi_tiet.get("additions", 0),
-            "deletions": chi_tiet.get("deletions", 0),
-            "changed_files": chi_tiet.get("changed_files", [])
-        }
-        ket_qua.append(commit_day_du)
+        chi_tiet = lay_chi_tiet_commit(owner, repo, sha, token=token)
+        ket_qua.append(
+            {
+                "sha": sha,
+                "khoa_contributor": commit.get("khoa_contributor", "Khong xac dinh"),
+                "ten_hien_thi": commit.get("ten_hien_thi", "Khong xac dinh"),
+                "message": commit.get("message", ""),
+                "additions": chi_tiet.get("additions", 0),
+                "deletions": chi_tiet.get("deletions", 0),
+                "changed_files": chi_tiet.get("changed_files", []),
+            }
+        )
+
+        time.sleep(0.03)
 
     return ket_qua
 
 
-def lay_toan_bo_commit_chi_tiet(owner, repo, so_luong=30):
+def lay_toan_bo_commit_chi_tiet(owner, repo, so_luong=30, token=None):
     """
     Ham cu de giu tuong thich.
     Thuc te ham nay chi lay danh sach commit theo so_luong.
     """
-    return lay_danh_sach_commit_chi_tiet(owner, repo, so_luong=so_luong)
+    return lay_danh_sach_commit_chi_tiet(owner, repo, so_luong=so_luong, token=token)
+

@@ -191,6 +191,13 @@ cython_debug/
 # Ruff stuff:
 .ruff_cache/
 
+# App runtime outputs
+analysis_history.sqlite3
+analysis_history.sqlite3-shm
+analysis_history.sqlite3-wal
+reports/*
+!reports/.gitkeep
+
 # PyPI configuration file
 .pypirc
 
