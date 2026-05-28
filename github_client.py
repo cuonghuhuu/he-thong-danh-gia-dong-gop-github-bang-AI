@@ -1,13 +1,15 @@
 import os
 import time
 from datetime import datetime
+from urllib.parse import urlparse
 
 import requests
 
 
 TIMEOUT_GITHUB_API = 15
 SO_COMMIT_TOI_DA_MOI_TRANG = 100
-GITHUB_API_ACCEPT = "application/vnd.github.v3+json"
+GITHUB_API_ACCEPT = "application/vnd.github+json"
+GITHUB_USER_AGENT = "GitHub-Contribution-AI"
 
 
 class GitHubAPIError(RuntimeError):
@@ -19,18 +21,98 @@ class GitHubAPIError(RuntimeError):
         self.detail = detail
 
 
+def tach_owner_repo_tu_chuoi(gia_tri):
+    """
+    Tach owner/repo tu URL GitHub, SSH URL hoac chuoi owner/repo.
+    Vi du hop le:
+    - https://github.com/owner/repo
+    - https://github.com/owner/repo.git
+    - git@github.com:owner/repo.git
+    - owner/repo
+    """
+    gia_tri = (gia_tri or "").strip()
+    if not gia_tri:
+        raise ValueError("Duong dan GitHub repository khong duoc de trong.")
+
+    if gia_tri.startswith("git@github.com:"):
+        path = gia_tri.split(":", 1)[1]
+    elif "://" in gia_tri:
+        parsed = urlparse(gia_tri)
+        netloc = parsed.netloc.lower()
+        if netloc not in {"github.com", "www.github.com"}:
+            raise ValueError("Chi ho tro URL repository tren github.com.")
+        path = parsed.path
+    else:
+        path = gia_tri
+
+    parts = [part for part in path.strip("/").split("/") if part]
+    if len(parts) < 2:
+        raise ValueError("URL GitHub repository phai co dang https://github.com/owner/repo.")
+
+    owner = parts[0].strip()
+    repo = parts[1].strip()
+    if repo.endswith(".git"):
+        repo = repo[:-4]
+
+    if not owner or not repo:
+        raise ValueError("Khong tach duoc Owner va Repository tu duong dan da nhap.")
+
+    return owner, repo
+
+
+def chuan_hoa_owner_repo(owner="", repo="", repo_url=""):
+    """
+    Chuan hoa thong tin repository.
+    Neu co repo_url thi uu tien repo_url. Neu repo rong va owner co dang URL
+    hoac owner/repo thi tu dong tach thanh owner va repo.
+    """
+    owner = (owner or "").strip()
+    repo = (repo or "").strip()
+    repo_url = (repo_url or "").strip()
+
+    if repo_url:
+        return tach_owner_repo_tu_chuoi(repo_url)
+
+    if not repo and owner and ("/" in owner or "github.com" in owner):
+        return tach_owner_repo_tu_chuoi(owner)
+
+    if not owner or not repo:
+        raise ValueError("Owner va Repository khong duoc de trong.")
+
+    return owner, repo
+
+
 def tao_headers(token=None):
     """
     Tao headers de goi GitHub API.
-    Token co the lay tu giao dien hoac bien moi truong GITHUB_TOKEN.
+    Phan biet ro:
+    - token is None: lay tu bien moi truong GITHUB_TOKEN neu co.
+    - token == "" hoac chi co khoang trang: co tinh khong dung token.
     """
-    headers = {"Accept": GITHUB_API_ACCEPT}
-    token = (token or os.getenv("GITHUB_TOKEN", "")).strip()
+    headers = {
+        "Accept": GITHUB_API_ACCEPT,
+        "User-Agent": GITHUB_USER_AGENT,
+    }
 
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
+    if token is None:
+        token = os.getenv("GITHUB_TOKEN")
+
+    if token is not None:
+        token = token.strip()
+
+    if not token:
+        return headers
+
+    headers["Authorization"] = f"Bearer {token}"
 
     return headers
+
+
+def _lay_so_nguyen_an_toan(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
 
 
 def rut_gon_noi_dung_loi(response):
@@ -209,8 +291,8 @@ def lay_chi_tiet_commit(owner, repo, sha, token=None):
 
     return {
         "sha": du_lieu.get("sha"),
-        "additions": stats.get("additions", 0),
-        "deletions": stats.get("deletions", 0),
+        "additions": _lay_so_nguyen_an_toan(stats.get("additions", 0)),
+        "deletions": _lay_so_nguyen_an_toan(stats.get("deletions", 0)),
         "changed_files": danh_sach_file,
     }
 

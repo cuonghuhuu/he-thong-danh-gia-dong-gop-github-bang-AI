@@ -1,4 +1,5 @@
 import csv
+import html
 import re
 from datetime import datetime
 from pathlib import Path
@@ -26,11 +27,16 @@ def _lay_score(item):
     return item.get("final_score", item.get("score", item.get("baseline_score", 0)))
 
 
+def _markdown_cell(value):
+    text = str(value).replace("\n", "<br>")
+    return text.replace("|", "\\|")
+
+
 def tao_bang_markdown(contributors):
     headers = [
         "STT",
         "Contributor",
-        "So commit",
+        "Số commit",
         "Additions",
         "Deletions",
         "Files changed",
@@ -40,7 +46,9 @@ def tao_bang_markdown(contributors):
         "File score",
         "Balance score",
         "Final score",
-        "Loai dong gop",
+        "Mức đóng góp",
+        "Loại đóng góp",
+        "Nhận xét",
     ]
     lines = [
         "| " + " | ".join(headers) + " |",
@@ -61,9 +69,11 @@ def tao_bang_markdown(contributors):
             f"{item.get('file_score', 0):.2f}",
             f"{item.get('balance_score', 0):.2f}",
             f"{_lay_score(item):.2f}",
+            str(item.get("contribution_level", "")),
             str(item.get("contribution_type", "")),
+            str(item.get("ai_summary", "")),
         ]
-        lines.append("| " + " | ".join(row) + " |")
+        lines.append("| " + " | ".join(_markdown_cell(value) for value in row) + " |")
 
     return "\n".join(lines)
 
@@ -85,28 +95,28 @@ def tao_bao_cao_markdown(ket_qua_phan_tich, tong_ket_repo=None):
     ai_summary = ket_qua_phan_tich.get("ai_summary", "")
 
     noi_dung = [
-        "# Bao cao dong gop contributor tren GitHub",
+        "# Báo cáo đóng góp contributor trên GitHub",
         "",
-        "## Tong quan",
+        "## Tổng quan",
         "",
         f"- Repository: {overview.get('repo_full_name', '')}",
-        f"- Thoi gian phan tich: {overview.get('analyzed_at', '')}",
-        f"- So commit da phan tich: {overview.get('analyzed_commit_count', 0)}",
-        f"- Tong contributor: {overview.get('contributor_count', 0)}",
-        f"- Tong additions: {overview.get('total_additions', 0)}",
-        f"- Tong deletions: {overview.get('total_deletions', 0)}",
-        f"- Contributor diem cao nhat: {overview.get('top_contributor', 'Chua co')}",
-        f"- Tong diem: {overview.get('total_score', 0):.2f}",
+        f"- Thời gian phân tích: {overview.get('analyzed_at', '')}",
+        f"- Số commit đã phân tích: {overview.get('analyzed_commit_count', 0)}",
+        f"- Tổng contributor: {overview.get('contributor_count', 0)}",
+        f"- Tổng additions: {overview.get('total_additions', 0)}",
+        f"- Tổng deletions: {overview.get('total_deletions', 0)}",
+        f"- Contributor điểm cao nhất: {overview.get('top_contributor', 'Chưa có')}",
+        f"- Tổng điểm: {overview.get('total_score', 0):.2f}",
         "",
-        "## Cong thuc diem",
+        "## Công thức điểm",
         "",
-        "final_score = 0.35 * commit_score + 0.35 * code_score + 0.2 * file_score + 0.1 * balance_score",
+        "final_score = 0.35 * commit_score + 0.35 * code_score + 0.20 * file_score + 0.10 * balance_score",
         "",
-        "## Bang contributor",
+        "## Bảng contributor",
         "",
         tao_bang_markdown(contributors),
         "",
-        "## Nhan xet AI rule-based",
+        "## Nhận xét AI rule-based",
         "",
         ai_summary,
         "",
@@ -131,7 +141,7 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
             [
                 "STT",
                 "Contributor",
-                "So commit",
+                "Số commit",
                 "Additions",
                 "Deletions",
                 "Files changed",
@@ -141,8 +151,9 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
                 "File score",
                 "Balance score",
                 "Final score",
-                "Loai dong gop",
-                "Nhan xet",
+                "Mức đóng góp",
+                "Loại đóng góp",
+                "Nhận xét",
             ]
         )
 
@@ -161,6 +172,7 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
                     f"{item.get('file_score', 0):.2f}",
                     f"{item.get('balance_score', 0):.2f}",
                     f"{_lay_score(item):.2f}",
+                    item.get("contribution_level", ""),
                     item.get("contribution_type", ""),
                     item.get("ai_summary", ""),
                 ]
@@ -183,26 +195,26 @@ def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
         ax.axis("off")
 
         lines = [
-            "Bao cao dong gop contributor tren GitHub",
+            "Báo cáo đóng góp contributor trên GitHub",
             "",
             f"Repository: {overview.get('repo_full_name', '')}",
-            f"Thoi gian phan tich: {overview.get('analyzed_at', '')}",
-            f"So commit da phan tich: {overview.get('analyzed_commit_count', 0)}",
-            f"Tong contributor: {overview.get('contributor_count', 0)}",
-            f"Tong additions: {overview.get('total_additions', 0)}",
-            f"Tong deletions: {overview.get('total_deletions', 0)}",
-            f"Contributor diem cao nhat: {overview.get('top_contributor', 'Chua co')}",
+            f"Thời gian phân tích: {overview.get('analyzed_at', '')}",
+            f"Số commit đã phân tích: {overview.get('analyzed_commit_count', 0)}",
+            f"Tổng contributor: {overview.get('contributor_count', 0)}",
+            f"Tổng additions: {overview.get('total_additions', 0)}",
+            f"Tổng deletions: {overview.get('total_deletions', 0)}",
+            f"Contributor điểm cao nhất: {overview.get('top_contributor', 'Chưa có')}",
             "",
-            "Cong thuc diem:",
-            "final_score = 0.35 commit_score + 0.35 code_score + 0.2 file_score + 0.1 balance_score",
+            "Công thức điểm:",
+            "final_score = 0.35 commit_score + 0.35 code_score + 0.20 file_score + 0.10 balance_score",
             "",
-            "Nhan xet AI rule-based:",
+            "Nhận xét AI rule-based:",
             ai_summary,
         ]
         ax.text(0.04, 0.96, "\n".join(lines), va="top", ha="left", fontsize=10, wrap=True)
         pdf.savefig(fig, bbox_inches="tight")
 
-        headers = ["STT", "Contributor", "Commit", "Add", "Del", "Files", "Final", "Loai"]
+        headers = ["STT", "Contributor", "Commit", "Add", "Del", "Files", "Final", "Mức", "Loại"]
         chunk_size = 25
         for start in range(0, len(contributors), chunk_size):
             fig = Figure(figsize=(11.69, 8.27))
@@ -221,6 +233,7 @@ def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
                         item.get("total_deletions", 0),
                         item.get("files_changed", item.get("changed_files_count", 0)),
                         f"{_lay_score(item):.2f}",
+                        item.get("contribution_level", ""),
                         item.get("contribution_type", ""),
                     ]
                 )
@@ -229,10 +242,50 @@ def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
             table.auto_set_font_size(False)
             table.set_fontsize(7)
             table.scale(1, 1.3)
-            ax.set_title("Bang contributor", fontsize=12, pad=16)
+            ax.set_title("Bảng contributor", fontsize=12, pad=16)
             pdf.savefig(fig, bbox_inches="tight")
 
     return path
+
+
+def _dang_ky_font_pdf_tieng_viet():
+    """
+    ReportLab font mac dinh khong ho tro tot tieng Viet co dau.
+    Dung DejaVu Sans di kem matplotlib de PDF xuat ra on dinh tren nhieu may.
+    """
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
+
+    try:
+        import matplotlib
+
+        font_dir = Path(matplotlib.get_data_path()) / "fonts" / "ttf"
+        regular_font = font_dir / "DejaVuSans.ttf"
+        bold_font = font_dir / "DejaVuSans-Bold.ttf"
+
+        if not regular_font.exists() or not bold_font.exists():
+            raise FileNotFoundError("Khong tim thay font DejaVu Sans.")
+
+        pdfmetrics.registerFont(TTFont("DejaVuSans", str(regular_font)))
+        pdfmetrics.registerFont(TTFont("DejaVuSans-Bold", str(bold_font)))
+        return "DejaVuSans", "DejaVuSans-Bold"
+    except Exception:
+        return "Helvetica", "Helvetica-Bold"
+
+
+def _cap_nhat_font_styles(styles, font_regular, font_bold):
+    for style_name in styles.byName:
+        styles[style_name].fontName = font_regular
+
+    for style_name in ("Title", "Heading1", "Heading2", "Heading3"):
+        if style_name in styles.byName:
+            styles[style_name].fontName = font_bold
+
+
+def _paragraph(text, style):
+    from reportlab.platypus import Paragraph
+
+    return Paragraph(html.escape(str(text)).replace("\n", "<br/>"), style)
 
 
 def xuat_pdf(ket_qua_phan_tich, reports_dir):
@@ -260,52 +313,60 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
         bottomMargin=1.2 * cm,
     )
     styles = getSampleStyleSheet()
+    font_regular, font_bold = _dang_ky_font_pdf_tieng_viet()
+    _cap_nhat_font_styles(styles, font_regular, font_bold)
     elements = []
 
-    elements.append(Paragraph("Bao cao dong gop contributor tren GitHub", styles["Title"]))
+    elements.append(Paragraph("Báo cáo đóng góp contributor trên GitHub", styles["Title"]))
     elements.append(Spacer(1, 0.4 * cm))
 
     overview_lines = [
         f"Repository: {overview.get('repo_full_name', '')}",
-        f"Thoi gian phan tich: {overview.get('analyzed_at', '')}",
-        f"So commit da phan tich: {overview.get('analyzed_commit_count', 0)}",
-        f"Tong contributor: {overview.get('contributor_count', 0)}",
-        f"Tong additions: {overview.get('total_additions', 0)}",
-        f"Tong deletions: {overview.get('total_deletions', 0)}",
-        f"Contributor diem cao nhat: {overview.get('top_contributor', 'Chua co')}",
+        f"Thời gian phân tích: {overview.get('analyzed_at', '')}",
+        f"Số commit đã phân tích: {overview.get('analyzed_commit_count', 0)}",
+        f"Tổng contributor: {overview.get('contributor_count', 0)}",
+        f"Tổng additions: {overview.get('total_additions', 0)}",
+        f"Tổng deletions: {overview.get('total_deletions', 0)}",
+        f"Contributor điểm cao nhất: {overview.get('top_contributor', 'Chưa có')}",
     ]
     for line in overview_lines:
-        elements.append(Paragraph(line, styles["Normal"]))
+        elements.append(_paragraph(line, styles["Normal"]))
 
     elements.append(Spacer(1, 0.4 * cm))
-    elements.append(Paragraph("Bang contributor", styles["Heading2"]))
+    elements.append(Paragraph("Bảng contributor", styles["Heading2"]))
 
-    table_data = [["STT", "Contributor", "Commit", "Add", "Del", "Files", "Final", "Loai"]]
+    table_data = [["STT", "Contributor", "Commit", "Add", "Del", "Files", "Final", "Mức", "Loại"]]
     for index, item in enumerate(contributors, start=1):
         table_data.append(
             [
                 index,
-                item.get("contributor", item.get("tac_gia", "")),
+                _paragraph(item.get("contributor", item.get("tac_gia", "")), styles["Normal"]),
                 item.get("commit_count", 0),
                 item.get("total_additions", 0),
                 item.get("total_deletions", 0),
                 item.get("files_changed", item.get("changed_files_count", 0)),
                 f"{_lay_score(item):.2f}",
-                item.get("contribution_type", ""),
+                _paragraph(item.get("contribution_level", ""), styles["Normal"]),
+                _paragraph(item.get("contribution_type", ""), styles["Normal"]),
             ]
         )
 
-    table = Table(table_data, repeatRows=1)
+    table = Table(
+        table_data,
+        colWidths=[0.8 * cm, 3.0 * cm, 1.2 * cm, 1.2 * cm, 1.2 * cm, 1.2 * cm, 1.4 * cm, 2.5 * cm, 3.2 * cm],
+        repeatRows=1,
+    )
     table.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#2f5f8f")),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("FONTNAME", (0, 0), (-1, 0), font_bold),
+                ("FONTNAME", (0, 1), (-1, -1), font_regular),
                 ("FONTSIZE", (0, 0), (-1, -1), 8),
                 ("ALIGN", (0, 0), (0, -1), "CENTER"),
-                ("ALIGN", (2, 1), (-2, -1), "RIGHT"),
+                ("ALIGN", (2, 1), (6, -1), "RIGHT"),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ]
         )
@@ -313,9 +374,9 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
     elements.append(table)
 
     elements.append(Spacer(1, 0.4 * cm))
-    elements.append(Paragraph("Nhan xet AI rule-based", styles["Heading2"]))
+    elements.append(Paragraph("Nhận xét AI rule-based", styles["Heading2"]))
     for block in ai_summary.split("\n\n"):
-        elements.append(Paragraph(block.replace("\n", "<br/>"), styles["Normal"]))
+        elements.append(_paragraph(block, styles["Normal"]))
         elements.append(Spacer(1, 0.2 * cm))
 
     document.build(elements)

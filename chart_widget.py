@@ -23,7 +23,7 @@ class ChartWidget(QWidget):
             ax.text(
                 0.5,
                 0.5,
-                "Chua co du lieu bieu do",
+                "Chưa có dữ liệu biểu đồ",
                 ha="center",
                 va="center",
                 fontsize=12,
@@ -45,12 +45,12 @@ class ChartWidget(QWidget):
         ax_component = self.figure.add_subplot(224)
 
         ax_score.bar(names, scores, color="#2f7d5c")
-        ax_score.set_title("Diem dong gop")
+        ax_score.set_title("Điểm đóng góp")
         ax_score.set_ylabel("Final score")
         ax_score.tick_params(axis="x", rotation=35, labelsize=8)
 
         ax_commit.bar(names, commits, color="#3b6ea8")
-        ax_commit.set_title("So commit")
+        ax_commit.set_title("Số commit")
         ax_commit.set_ylabel("Commit")
         ax_commit.tick_params(axis="x", rotation=35, labelsize=8)
 
@@ -85,7 +85,7 @@ class ChartWidget(QWidget):
         ]
         ax_component.bar(component_names, component_scores, color="#8b6f3d")
         ax_component.set_ylim(0, 100)
-        ax_component.set_title("Diem thanh phan cua top contributor")
+        ax_component.set_title("Điểm thành phần của top contributor")
         ax_component.tick_params(axis="x", labelsize=8)
 
         self.canvas.draw()

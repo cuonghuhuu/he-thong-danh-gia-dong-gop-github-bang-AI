@@ -70,24 +70,21 @@ def tinh_chi_so_contributor(du_lieu_gom):
 
 def _normalize_log_min_max(values):
     """
-    Chuan hoa Min-Max tren log1p(value) ve thang 0-100.
-    Neu tat ca contributor co cung gia tri duong, gan 100 de khong lam mat diem.
+    Chuan hoa log1p(value) theo gia tri lon nhat ve thang 0-100.
+    Cach nay giu diem cua contributor thap hon khong bi day ve 0 chi vi la
+    nguoi co chi so nho nhat trong repo.
     """
     log_values = [math.log1p(max(value, 0)) for value in values]
 
     if not log_values:
         return []
 
-    min_value = min(log_values)
     max_value = max(log_values)
 
-    if max_value == min_value:
-        return [100.0 if value > 0 else 0.0 for value in values]
+    if max_value <= 0:
+        return [0.0 for _ in values]
 
-    return [
-        (log_value - min_value) / (max_value - min_value) * 100
-        for log_value in log_values
-    ]
+    return [log_value / max_value * 100 for log_value in log_values]
 
 
 def _tinh_balance_score(additions, deletions):
@@ -134,6 +131,7 @@ def tinh_diem_dong_gop_co_ban(danh_sach_thong_ke):
             + 0.20 * file_score
             + 0.10 * balance_score
         )
+        final_score = max(0.0, min(100.0, final_score))
 
         thong_tin_moi = item.copy()
         thong_tin_moi.update(
