@@ -76,8 +76,7 @@ class MainWindow(QMainWindow):
     def _setup_widgets(self):
         self.tokenInput.setEchoMode(QLineEdit.EchoMode.Password)
         self.tokenInput.setText(os.getenv("GITHUB_TOKEN", ""))
-        if hasattr(self, "repoUrlInput"):
-            self.repoUrlInput.setText(os.getenv("GITHUB_REPO_URL", ""))
+        self.repoUrlInput.setText(os.getenv("GITHUB_REPO_URL", ""))
         self.ownerInput.setText(os.getenv("REPO_OWNER", ""))
         self.repoInput.setText(os.getenv("REPO_NAME", ""))
         self._nap_so_commit_tu_env()
@@ -88,10 +87,11 @@ class MainWindow(QMainWindow):
         self.contributorTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.contributorTable.verticalHeader().setVisible(False)
 
-        self.historyTable.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.historyTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.historyTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.historyTable.verticalHeader().setVisible(False)
+        if hasattr(self, "historyTable"):
+            self.historyTable.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+            self.historyTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+            self.historyTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+            self.historyTable.verticalHeader().setVisible(False)
 
         self.aiTextEdit.setReadOnly(True)
         self.statusbar.showMessage("Sẵn sàng.")
@@ -106,14 +106,14 @@ class MainWindow(QMainWindow):
         self.commitSpinBox.setValue(so_commit)
 
     def _connect_signals(self):
-        if hasattr(self, "repoUrlInput"):
-            self.repoUrlInput.editingFinished.connect(self.tu_dong_dien_owner_repo_tu_url)
+        self.repoUrlInput.editingFinished.connect(self.tu_dong_dien_owner_repo_tu_url)
         self.analyzeButton.clicked.connect(self.phan_tich)
         self.exportMarkdownButton.clicked.connect(self.xuat_markdown)
         self.exportCsvButton.clicked.connect(self.xuat_csv)
         self.exportPdfButton.clicked.connect(self.xuat_pdf)
         self.saveHistoryButton.clicked.connect(self.luu_lich_su)
-        self.refreshHistoryButton.clicked.connect(self.tai_lich_su)
+        if hasattr(self, "refreshHistoryButton"):
+            self.refreshHistoryButton.clicked.connect(self.tai_lich_su)
 
     def _set_result_buttons_enabled(self, enabled):
         self.exportMarkdownButton.setEnabled(enabled)
@@ -122,9 +122,6 @@ class MainWindow(QMainWindow):
         self.saveHistoryButton.setEnabled(enabled)
 
     def tu_dong_dien_owner_repo_tu_url(self):
-        if not hasattr(self, "repoUrlInput"):
-            return
-
         repo_url = self.repoUrlInput.text().strip()
         if not repo_url:
             return
@@ -138,7 +135,7 @@ class MainWindow(QMainWindow):
         self.repoInput.setText(repo)
 
     def lay_thong_tin_repo_tu_form(self):
-        repo_url = self.repoUrlInput.text().strip() if hasattr(self, "repoUrlInput") else ""
+        repo_url = self.repoUrlInput.text().strip()
         owner = self.ownerInput.text().strip()
         repo = self.repoInput.text().strip()
         return chuan_hoa_owner_repo(owner, repo, repo_url=repo_url)
@@ -197,7 +194,6 @@ class MainWindow(QMainWindow):
         self.aiTextEdit.setPlainText(ket_qua.get("ai_summary", ""))
         self._set_result_buttons_enabled(True)
         self.statusbar.showMessage("Phân tích hoàn tất.")
-        self.tabWidget.setCurrentWidget(self.dashboardTab)
 
     def hien_thi_tong_quan(self, ket_qua):
         overview = ket_qua.get("overview", {})
@@ -206,29 +202,29 @@ class MainWindow(QMainWindow):
         self.totalContributorsLabel.setText(str(overview.get("contributor_count", 0)))
         self.totalAdditionsLabel.setText(str(overview.get("total_additions", 0)))
         self.totalDeletionsLabel.setText(str(overview.get("total_deletions", 0)))
-        self.topContributorLabel.setText(
-            f"{overview.get('top_contributor', 'Chưa có')} "
-            f"({overview.get('top_score', 0):.2f})"
-        )
-        self.totalScoreLabel.setText(f"{overview.get('total_score', 0):.2f}")
+        self.averageQualityLabel.setText(f"{overview.get('average_quality_score', 0):.2f}")
+        self.suspiciousCommitLabel.setText(str(overview.get("suspicious_commit_count", 0)))
+
+        if hasattr(self, "topContributorLabel"):
+            self.topContributorLabel.setText(
+                f"{overview.get('top_contributor', 'Chưa có')} "
+                f"({overview.get('top_score', 0):.2f})"
+            )
+        if hasattr(self, "totalScoreLabel"):
+            self.totalScoreLabel.setText(f"{overview.get('total_score', 0):.2f}")
 
     def hien_thi_bang_contributor(self, contributors):
         headers = [
-            "STT",
             "Contributor",
-            "Số commit",
+            "Commit",
             "Additions",
             "Deletions",
-            "Files changed",
-            "Total changes",
-            "Commit score",
-            "Code score",
-            "File score",
-            "Balance score",
-            "Final score",
-            "Mức đóng góp",
-            "Loại đóng góp",
-            "Nhận xét",
+            "Files",
+            "Quality Score",
+            "Penalty",
+            "Final Score",
+            "Mức đánh giá",
+            "Nhận xét ngắn",
         ]
         self.contributorTable.setColumnCount(len(headers))
         self.contributorTable.setHorizontalHeaderLabels(headers)
@@ -236,26 +232,21 @@ class MainWindow(QMainWindow):
 
         for row, item in enumerate(contributors):
             values = [
-                row + 1,
                 item.get("contributor", ""),
                 item.get("commit_count", 0),
                 item.get("total_additions", 0),
                 item.get("total_deletions", 0),
                 item.get("files_changed", item.get("changed_files_count", 0)),
-                item.get("total_changes", 0),
-                f"{item.get('commit_score', 0):.2f}",
-                f"{item.get('code_score', 0):.2f}",
-                f"{item.get('file_score', 0):.2f}",
-                f"{item.get('balance_score', 0):.2f}",
+                f"{item.get('quality_score', 0):.2f}",
+                f"{item.get('penalty_score', 0):.2f}",
                 f"{item.get('final_score', item.get('score', 0)):.2f}",
                 item.get("contribution_level", ""),
-                item.get("contribution_type", ""),
-                item.get("ai_summary", ""),
+                item.get("short_summary", item.get("ai_summary", "")),
             ]
 
             for col, value in enumerate(values):
                 table_item = QTableWidgetItem(str(value))
-                if col not in {1, 12, 13, 14}:
+                if col not in {0, 8, 9}:
                     table_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 self.contributorTable.setItem(row, col, table_item)
 
@@ -317,6 +308,9 @@ class MainWindow(QMainWindow):
         QMessageBox.information(self, "Đã lưu lịch sử", f"Đã lưu lần phân tích ID {new_id}.")
 
     def tai_lich_su(self):
+        if not hasattr(self, "historyTable"):
+            return
+
         rows = self.db_manager.lay_lich_su()
         headers = [
             "ID",
@@ -354,4 +348,3 @@ class MainWindow(QMainWindow):
                 self.historyTable.setItem(row_index, col, table_item)
 
         self.historyTable.resizeRowsToContents()
-

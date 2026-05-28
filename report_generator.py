@@ -32,22 +32,32 @@ def _markdown_cell(value):
     return text.replace("|", "\\|")
 
 
+def _tom_tat_commit_dang_nghi(item):
+    commits = item.get("suspicious_commits", [])
+    if not commits:
+        return "Không có"
+
+    parts = []
+    for commit in commits:
+        reasons = "; ".join(commit.get("reasons", []))
+        parts.append(f"{commit.get('short_sha', '')}: {commit.get('message', '')} ({reasons})")
+    return " | ".join(parts)
+
+
 def tao_bang_markdown(contributors):
     headers = [
         "STT",
         "Contributor",
-        "Số commit",
+        "Commit",
         "Additions",
         "Deletions",
-        "Files changed",
-        "Total changes",
-        "Commit score",
-        "Code score",
-        "File score",
-        "Balance score",
+        "Files",
+        "Quality score",
+        "Penalty",
+        "Suspicious commits",
+        "Suspicious ratio",
         "Final score",
-        "Mức đóng góp",
-        "Loại đóng góp",
+        "Mức đánh giá",
         "Nhận xét",
     ]
     lines = [
@@ -63,17 +73,41 @@ def tao_bang_markdown(contributors):
             str(item.get("total_additions", 0)),
             str(item.get("total_deletions", 0)),
             str(item.get("files_changed", item.get("changed_files_count", 0))),
-            str(item.get("total_changes", 0)),
-            f"{item.get('commit_score', 0):.2f}",
-            f"{item.get('code_score', 0):.2f}",
-            f"{item.get('file_score', 0):.2f}",
-            f"{item.get('balance_score', 0):.2f}",
+            f"{item.get('quality_score', 0):.2f}",
+            f"{item.get('penalty_score', 0):.2f}",
+            str(item.get("suspicious_commit_count", 0)),
+            f"{item.get('suspicious_commit_ratio', 0) * 100:.1f}%",
             f"{_lay_score(item):.2f}",
             str(item.get("contribution_level", "")),
-            str(item.get("contribution_type", "")),
-            str(item.get("ai_summary", "")),
+            str(item.get("short_summary", item.get("ai_summary", ""))),
         ]
         lines.append("| " + " | ".join(_markdown_cell(value) for value in row) + " |")
+
+    return "\n".join(lines)
+
+
+def tao_danh_sach_commit_dang_nghi_markdown(contributors):
+    lines = ["## Commit cần xem lại", ""]
+    has_suspicious_commit = False
+
+    for item in contributors:
+        suspicious_commits = item.get("suspicious_commits", [])
+        if not suspicious_commits:
+            continue
+
+        has_suspicious_commit = True
+        lines.append(f"### {item.get('contributor', 'Không xác định')}")
+        lines.append("")
+        for commit in suspicious_commits:
+            reasons = "; ".join(commit.get("reasons", []))
+            lines.append(
+                f"- `{commit.get('short_sha', '')}` - {commit.get('message', '')}: {reasons}"
+            )
+        lines.append("")
+
+    if not has_suspicious_commit:
+        lines.append("Không có commit đáng nghi nổi bật.")
+        lines.append("")
 
     return "\n".join(lines)
 
@@ -95,7 +129,7 @@ def tao_bao_cao_markdown(ket_qua_phan_tich, tong_ket_repo=None):
     ai_summary = ket_qua_phan_tich.get("ai_summary", "")
 
     noi_dung = [
-        "# Báo cáo đóng góp contributor trên GitHub",
+        "# Báo cáo đánh giá đóng góp contributor trên GitHub",
         "",
         "## Tổng quan",
         "",
@@ -105,17 +139,26 @@ def tao_bao_cao_markdown(ket_qua_phan_tich, tong_ket_repo=None):
         f"- Tổng contributor: {overview.get('contributor_count', 0)}",
         f"- Tổng additions: {overview.get('total_additions', 0)}",
         f"- Tổng deletions: {overview.get('total_deletions', 0)}",
+        f"- Điểm chất lượng trung bình: {overview.get('average_quality_score', 0):.2f}",
+        f"- Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
         f"- Contributor điểm cao nhất: {overview.get('top_contributor', 'Chưa có')}",
-        f"- Tổng điểm: {overview.get('total_score', 0):.2f}",
         "",
         "## Công thức điểm",
         "",
-        "final_score = 0.35 * commit_score + 0.35 * code_score + 0.20 * file_score + 0.10 * balance_score",
+        "```text",
+        "final_score = 0.20 * commit_score",
+        "            + 0.20 * code_volume_score",
+        "            + 0.20 * file_impact_score",
+        "            + 0.25 * quality_score",
+        "            + 0.15 * consistency_score",
+        "            - penalty_score",
+        "```",
         "",
         "## Bảng contributor",
         "",
         tao_bang_markdown(contributors),
         "",
+        tao_danh_sach_commit_dang_nghi_markdown(contributors),
         "## Nhận xét AI rule-based",
         "",
         ai_summary,
@@ -141,19 +184,26 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
             [
                 "STT",
                 "Contributor",
-                "Số commit",
+                "Commit",
                 "Additions",
                 "Deletions",
-                "Files changed",
-                "Total changes",
+                "Files",
                 "Commit score",
-                "Code score",
-                "File score",
-                "Balance score",
+                "Code volume score",
+                "File impact score",
+                "Commit message score",
+                "Meaningful change score",
+                "Code impact score",
+                "Quality score",
+                "Consistency score",
+                "Penalty score",
+                "Suspicious commit count",
+                "Suspicious commit ratio",
                 "Final score",
-                "Mức đóng góp",
-                "Loại đóng góp",
-                "Nhận xét",
+                "Mức đánh giá",
+                "Nhãn phụ",
+                "Nhận xét AI",
+                "Commit đáng nghi",
             ]
         )
 
@@ -166,93 +216,29 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
                     item.get("total_additions", 0),
                     item.get("total_deletions", 0),
                     item.get("files_changed", item.get("changed_files_count", 0)),
-                    item.get("total_changes", 0),
                     f"{item.get('commit_score', 0):.2f}",
-                    f"{item.get('code_score', 0):.2f}",
-                    f"{item.get('file_score', 0):.2f}",
-                    f"{item.get('balance_score', 0):.2f}",
+                    f"{item.get('code_volume_score', 0):.2f}",
+                    f"{item.get('file_impact_score', 0):.2f}",
+                    f"{item.get('commit_message_score', 0):.2f}",
+                    f"{item.get('meaningful_change_score', 0):.2f}",
+                    f"{item.get('code_impact_score', 0):.2f}",
+                    f"{item.get('quality_score', 0):.2f}",
+                    f"{item.get('consistency_score', 0):.2f}",
+                    f"{item.get('penalty_score', 0):.2f}",
+                    item.get("suspicious_commit_count", 0),
+                    f"{item.get('suspicious_commit_ratio', 0) * 100:.1f}%",
                     f"{_lay_score(item):.2f}",
                     item.get("contribution_level", ""),
                     item.get("contribution_type", ""),
                     item.get("ai_summary", ""),
+                    _tom_tat_commit_dang_nghi(item),
                 ]
             )
 
     return path
 
 
-def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
-    from matplotlib.backends.backend_pdf import PdfPages
-    from matplotlib.figure import Figure
-
-    overview = ket_qua_phan_tich.get("overview", {})
-    contributors = ket_qua_phan_tich.get("contributors", [])
-    ai_summary = ket_qua_phan_tich.get("ai_summary", "")
-
-    with PdfPages(path) as pdf:
-        fig = Figure(figsize=(8.27, 11.69))
-        ax = fig.add_subplot(111)
-        ax.axis("off")
-
-        lines = [
-            "Báo cáo đóng góp contributor trên GitHub",
-            "",
-            f"Repository: {overview.get('repo_full_name', '')}",
-            f"Thời gian phân tích: {overview.get('analyzed_at', '')}",
-            f"Số commit đã phân tích: {overview.get('analyzed_commit_count', 0)}",
-            f"Tổng contributor: {overview.get('contributor_count', 0)}",
-            f"Tổng additions: {overview.get('total_additions', 0)}",
-            f"Tổng deletions: {overview.get('total_deletions', 0)}",
-            f"Contributor điểm cao nhất: {overview.get('top_contributor', 'Chưa có')}",
-            "",
-            "Công thức điểm:",
-            "final_score = 0.35 commit_score + 0.35 code_score + 0.20 file_score + 0.10 balance_score",
-            "",
-            "Nhận xét AI rule-based:",
-            ai_summary,
-        ]
-        ax.text(0.04, 0.96, "\n".join(lines), va="top", ha="left", fontsize=10, wrap=True)
-        pdf.savefig(fig, bbox_inches="tight")
-
-        headers = ["STT", "Contributor", "Commit", "Add", "Del", "Files", "Final", "Mức", "Loại"]
-        chunk_size = 25
-        for start in range(0, len(contributors), chunk_size):
-            fig = Figure(figsize=(11.69, 8.27))
-            ax = fig.add_subplot(111)
-            ax.axis("off")
-
-            chunk = contributors[start : start + chunk_size]
-            table_rows = []
-            for index, item in enumerate(chunk, start=start + 1):
-                table_rows.append(
-                    [
-                        index,
-                        item.get("contributor", item.get("tac_gia", "")),
-                        item.get("commit_count", 0),
-                        item.get("total_additions", 0),
-                        item.get("total_deletions", 0),
-                        item.get("files_changed", item.get("changed_files_count", 0)),
-                        f"{_lay_score(item):.2f}",
-                        item.get("contribution_level", ""),
-                        item.get("contribution_type", ""),
-                    ]
-                )
-
-            table = ax.table(cellText=table_rows, colLabels=headers, loc="center")
-            table.auto_set_font_size(False)
-            table.set_fontsize(7)
-            table.scale(1, 1.3)
-            ax.set_title("Bảng contributor", fontsize=12, pad=16)
-            pdf.savefig(fig, bbox_inches="tight")
-
-    return path
-
-
 def _dang_ky_font_pdf_tieng_viet():
-    """
-    ReportLab font mac dinh khong ho tro tot tieng Viet co dau.
-    Dung DejaVu Sans di kem matplotlib de PDF xuat ra on dinh tren nhieu may.
-    """
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
 
@@ -288,12 +274,47 @@ def _paragraph(text, style):
     return Paragraph(html.escape(str(text)).replace("\n", "<br/>"), style)
 
 
+def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
+    from matplotlib.backends.backend_pdf import PdfPages
+    from matplotlib.figure import Figure
+
+    overview = ket_qua_phan_tich.get("overview", {})
+    contributors = ket_qua_phan_tich.get("contributors", [])
+
+    with PdfPages(path) as pdf:
+        fig = Figure(figsize=(8.27, 11.69))
+        ax = fig.add_subplot(111)
+        ax.axis("off")
+
+        lines = [
+            "Báo cáo đánh giá đóng góp contributor trên GitHub",
+            "",
+            f"Repository: {overview.get('repo_full_name', '')}",
+            f"Số commit đã phân tích: {overview.get('analyzed_commit_count', 0)}",
+            f"Điểm chất lượng trung bình: {overview.get('average_quality_score', 0):.2f}",
+            f"Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
+            "",
+            "Contributor:",
+        ]
+        for item in contributors:
+            lines.append(
+                f"- {item.get('contributor', '')}: final={_lay_score(item):.2f}, "
+                f"quality={item.get('quality_score', 0):.2f}, "
+                f"suspicious={item.get('suspicious_commit_count', 0)}"
+            )
+
+        ax.text(0.04, 0.96, "\n".join(lines), va="top", ha="left", fontsize=10, wrap=True)
+        pdf.savefig(fig, bbox_inches="tight")
+
+    return path
+
+
 def xuat_pdf(ket_qua_phan_tich, reports_dir):
     path = tao_duong_dan_bao_cao(ket_qua_phan_tich, reports_dir, "pdf")
 
     try:
         from reportlab.lib import colors
-        from reportlab.lib.pagesizes import A4
+        from reportlab.lib.pagesizes import A4, landscape
         from reportlab.lib.styles import getSampleStyleSheet
         from reportlab.lib.units import cm
         from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
@@ -306,19 +327,19 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
 
     document = SimpleDocTemplate(
         str(path),
-        pagesize=A4,
-        rightMargin=1.2 * cm,
-        leftMargin=1.2 * cm,
-        topMargin=1.2 * cm,
-        bottomMargin=1.2 * cm,
+        pagesize=landscape(A4),
+        rightMargin=1.0 * cm,
+        leftMargin=1.0 * cm,
+        topMargin=1.0 * cm,
+        bottomMargin=1.0 * cm,
     )
     styles = getSampleStyleSheet()
     font_regular, font_bold = _dang_ky_font_pdf_tieng_viet()
     _cap_nhat_font_styles(styles, font_regular, font_bold)
     elements = []
 
-    elements.append(Paragraph("Báo cáo đóng góp contributor trên GitHub", styles["Title"]))
-    elements.append(Spacer(1, 0.4 * cm))
+    elements.append(Paragraph("Báo cáo đánh giá đóng góp contributor trên GitHub", styles["Title"]))
+    elements.append(Spacer(1, 0.35 * cm))
 
     overview_lines = [
         f"Repository: {overview.get('repo_full_name', '')}",
@@ -327,15 +348,28 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
         f"Tổng contributor: {overview.get('contributor_count', 0)}",
         f"Tổng additions: {overview.get('total_additions', 0)}",
         f"Tổng deletions: {overview.get('total_deletions', 0)}",
-        f"Contributor điểm cao nhất: {overview.get('top_contributor', 'Chưa có')}",
+        f"Điểm chất lượng trung bình: {overview.get('average_quality_score', 0):.2f}",
+        f"Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
     ]
     for line in overview_lines:
         elements.append(_paragraph(line, styles["Normal"]))
 
-    elements.append(Spacer(1, 0.4 * cm))
+    elements.append(Spacer(1, 0.35 * cm))
     elements.append(Paragraph("Bảng contributor", styles["Heading2"]))
 
-    table_data = [["STT", "Contributor", "Commit", "Add", "Del", "Files", "Final", "Mức", "Loại"]]
+    table_data = [[
+        "STT",
+        "Contributor",
+        "Commit",
+        "Add",
+        "Del",
+        "Files",
+        "Quality",
+        "Penalty",
+        "Suspicious",
+        "Final",
+        "Mức đánh giá",
+    ]]
     for index, item in enumerate(contributors, start=1):
         table_data.append(
             [
@@ -345,15 +379,29 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
                 item.get("total_additions", 0),
                 item.get("total_deletions", 0),
                 item.get("files_changed", item.get("changed_files_count", 0)),
+                f"{item.get('quality_score', 0):.2f}",
+                f"{item.get('penalty_score', 0):.2f}",
+                item.get("suspicious_commit_count", 0),
                 f"{_lay_score(item):.2f}",
                 _paragraph(item.get("contribution_level", ""), styles["Normal"]),
-                _paragraph(item.get("contribution_type", ""), styles["Normal"]),
             ]
         )
 
     table = Table(
         table_data,
-        colWidths=[0.8 * cm, 3.0 * cm, 1.2 * cm, 1.2 * cm, 1.2 * cm, 1.2 * cm, 1.4 * cm, 2.5 * cm, 3.2 * cm],
+        colWidths=[
+            0.8 * cm,
+            3.1 * cm,
+            1.2 * cm,
+            1.4 * cm,
+            1.4 * cm,
+            1.2 * cm,
+            1.6 * cm,
+            1.4 * cm,
+            1.6 * cm,
+            1.4 * cm,
+            4.0 * cm,
+        ],
         repeatRows=1,
     )
     table.setStyle(
@@ -366,19 +414,34 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
                 ("FONTNAME", (0, 1), (-1, -1), font_regular),
                 ("FONTSIZE", (0, 0), (-1, -1), 8),
                 ("ALIGN", (0, 0), (0, -1), "CENTER"),
-                ("ALIGN", (2, 1), (6, -1), "RIGHT"),
+                ("ALIGN", (2, 1), (9, -1), "RIGHT"),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ]
         )
     )
     elements.append(table)
 
-    elements.append(Spacer(1, 0.4 * cm))
+    elements.append(Spacer(1, 0.35 * cm))
+    elements.append(Paragraph("Commit cần xem lại", styles["Heading2"]))
+    has_suspicious_commit = False
+    for item in contributors:
+        for commit in item.get("suspicious_commits", []):
+            has_suspicious_commit = True
+            reasons = "; ".join(commit.get("reasons", []))
+            text = (
+                f"{item.get('contributor', '')} - {commit.get('short_sha', '')}: "
+                f"{commit.get('message', '')} ({reasons})"
+            )
+            elements.append(_paragraph(text, styles["Normal"]))
+
+    if not has_suspicious_commit:
+        elements.append(_paragraph("Không có commit đáng nghi nổi bật.", styles["Normal"]))
+
+    elements.append(Spacer(1, 0.35 * cm))
     elements.append(Paragraph("Nhận xét AI rule-based", styles["Heading2"]))
     for block in ai_summary.split("\n\n"):
         elements.append(_paragraph(block, styles["Normal"]))
-        elements.append(Spacer(1, 0.2 * cm))
+        elements.append(Spacer(1, 0.15 * cm))
 
     document.build(elements)
     return path
-

@@ -284,16 +284,28 @@ def lay_chi_tiet_commit(owner, repo, sha, token=None):
     files = du_lieu.get("files", []) or []
 
     danh_sach_file = []
+    files_detail = []
     for file_info in files:
         ten_file = file_info.get("filename")
         if ten_file:
             danh_sach_file.append(ten_file)
+            files_detail.append(
+                {
+                    "filename": ten_file,
+                    "status": file_info.get("status", ""),
+                    "additions": _lay_so_nguyen_an_toan(file_info.get("additions", 0)),
+                    "deletions": _lay_so_nguyen_an_toan(file_info.get("deletions", 0)),
+                    "changes": _lay_so_nguyen_an_toan(file_info.get("changes", 0)),
+                    "patch": file_info.get("patch", "") or "",
+                }
+            )
 
     return {
         "sha": du_lieu.get("sha"),
         "additions": _lay_so_nguyen_an_toan(stats.get("additions", 0)),
         "deletions": _lay_so_nguyen_an_toan(stats.get("deletions", 0)),
         "changed_files": danh_sach_file,
+        "files_detail": files_detail,
     }
 
 
@@ -327,6 +339,7 @@ def lay_danh_sach_commit_chi_tiet(
                 "additions": chi_tiet.get("additions", 0),
                 "deletions": chi_tiet.get("deletions", 0),
                 "changed_files": chi_tiet.get("changed_files", []),
+                "files_detail": chi_tiet.get("files_detail", []),
             }
         )
 
