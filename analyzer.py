@@ -10,6 +10,7 @@ from ai_summary import (
     tao_tong_ket_repo,
 )
 from github_client import lay_danh_sach_commit_chi_tiet, lay_thong_tin_repository
+from github_client import normalize_contributor
 
 
 SOURCE_CODE_EXTENSIONS = {
@@ -414,13 +415,88 @@ def danh_gia_chat_luong_commit(commit):
     }
 
 
+def loc_commit_duoc_tinh_diem(danh_sach_commit):
+    """Loai commit bot/tu dong khoi tap du lieu cham diem chinh."""
+    commits_duoc_tinh = []
+    ignored_commits = []
+    ignored_bot_commit_count = 0
+    ignored_auto_commit_count = 0
+
+    for commit in danh_sach_commit:
+        contributor = normalize_contributor(commit)
+        commit_moi = commit.copy()
+        for key in (
+            "khoa_contributor",
+            "ten_hien_thi",
+            "github_login",
+            "author_name",
+            "author_email",
+            "committer_login",
+            "committer_name",
+            "committer_email",
+        ):
+            if contributor.get(key):
+                commit_moi[key] = contributor[key]
+
+        if contributor.get("message") and not commit_moi.get("message"):
+            commit_moi["message"] = contributor["message"]
+
+        is_bot = bool(commit.get("is_bot") or contributor.get("is_bot"))
+        is_auto_commit = bool(
+            commit.get("is_auto_commit") or contributor.get("is_auto_commit")
+        )
+
+        ignored_reasons = []
+        if is_bot:
+            ignored_bot_commit_count += 1
+            ignored_reasons.append("bot")
+        if is_auto_commit:
+            ignored_auto_commit_count += 1
+            ignored_reasons.append("auto_commit")
+
+        commit_moi["is_bot"] = is_bot
+        commit_moi["is_auto_commit"] = is_auto_commit
+        commit_moi["is_ignored"] = bool(ignored_reasons)
+        commit_moi["ignored_reasons"] = ignored_reasons
+
+        if ignored_reasons:
+            ignored_commits.append(
+                {
+                    "sha": commit_moi.get("sha", ""),
+                    "short_sha": _short_sha(commit_moi.get("sha", "")),
+                    "contributor": commit_moi.get("ten_hien_thi", ""),
+                    "message": _first_line(commit_moi.get("message", "")),
+                    "reasons": ignored_reasons,
+                }
+            )
+            continue
+
+        commits_duoc_tinh.append(commit_moi)
+
+    return commits_duoc_tinh, {
+        "ignored_bot_commit_count": ignored_bot_commit_count,
+        "ignored_auto_commit_count": ignored_auto_commit_count,
+        "ignored_commit_count": len(ignored_commits),
+        "ignored_commits": ignored_commits,
+    }
+
+
 def gom_commit_theo_contributor(danh_sach_commit):
     """Gom danh sach commit theo contributor."""
     ket_qua = {}
 
     for commit in danh_sach_commit:
-        khoa_contributor = commit.get("khoa_contributor") or "Khong xac dinh"
-        ten_hien_thi = commit.get("ten_hien_thi") or "Khong xac dinh"
+        contributor = normalize_contributor(commit)
+        khoa_contributor = (
+            contributor.get("khoa_contributor")
+            or commit.get("khoa_contributor")
+            or "Khong xac dinh"
+        )
+        ten_hien_thi = (
+            contributor.get("ten_hien_thi")
+            or commit.get("ten_hien_thi")
+            or "Khong xac dinh"
+        )
 
         if khoa_contributor not in ket_qua:
             ket_qua[khoa_contributor] = {
@@ -643,7 +719,16 @@ def xep_hang_contributor(danh_sach_thong_ke):
     )
 
 
-def tao_overview(owner, repo, repo_info, so_luong_commit, danh_sach_commit, contributors):
+def tao_overview(
+    owner,
+    repo,
+    repo_info,
+    so_luong_commit,
+    danh_sach_commit,
+    contributors,
+    ignored_stats=None,
+):
+    ignored_stats = ignored_stats or {}
     top_contributor = contributors[0] if contributors else {}
     tong_diem = sum(item.get("final_score", item.get("score", 0)) for item in contributors)
     average_quality_score = (
@@ -661,6 +746,9 @@ def tao_overview(owner, repo, repo_info, so_luong_commit, danh_sach_commit, cont
         "repo_full_name": repo_info.get("full_name", f"{owner}/{repo}"),
         "requested_commit_count": so_luong_commit,
         "analyzed_commit_count": len(danh_sach_commit),
+        "ignored_commit_count": ignored_stats.get("ignored_commit_count", 0),
+        "ignored_bot_commit_count": ignored_stats.get("ignored_bot_commit_count", 0),
+        "ignored_auto_commit_count": ignored_stats.get("ignored_auto_commit_count", 0),
         "contributor_count": len(contributors),
         "total_additions": sum(item.get("total_additions", 0) for item in contributors),
         "total_deletions": sum(item.get("total_deletions", 0) for item in contributors),
@@ -674,7 +762,8 @@ def tao_overview(owner, repo, repo_info, so_luong_commit, danh_sach_commit, cont
 
 
 def phan_tich_commit_da_lay(owner, repo, repo_info, so_luong_commit, danh_sach_commit):
-    du_lieu_gom = gom_commit_theo_contributor(danh_sach_commit)
+    danh_sach_commit_duoc_tinh, ignored_stats = loc_commit_duoc_tinh_diem(danh_sach_commit)
+    du_lieu_gom = gom_commit_theo_contributor(danh_sach_commit_duoc_tinh)
     thong_ke = tinh_chi_so_contributor(du_lieu_gom)
     thong_ke_co_diem = tinh_diem_dong_gop_co_ban(thong_ke)
     thong_ke_xep_hang = xep_hang_contributor(thong_ke_co_diem)
@@ -685,8 +774,9 @@ def phan_tich_commit_da_lay(owner, repo, repo_info, so_luong_commit, danh_sach_c
         repo,
         repo_info,
         so_luong_commit,
-        danh_sach_commit,
+        danh_sach_commit_duoc_tinh,
         contributors,
+        ignored_stats,
     )
 
     ket_qua = {
@@ -695,6 +785,10 @@ def phan_tich_commit_da_lay(owner, repo, repo_info, so_luong_commit, danh_sach_c
         "repo_info": repo_info,
         "overview": overview,
         "contributors": contributors,
+        "ignored_commit_count": ignored_stats.get("ignored_commit_count", 0),
+        "ignored_bot_commit_count": ignored_stats.get("ignored_bot_commit_count", 0),
+        "ignored_auto_commit_count": ignored_stats.get("ignored_auto_commit_count", 0),
+        "ignored_commits": ignored_stats.get("ignored_commits", []),
         "repo_summary": tao_tong_ket_repo(contributors),
     }
     ket_qua["ai_summary"] = tao_nhan_xet_ai_rule_based(ket_qua)

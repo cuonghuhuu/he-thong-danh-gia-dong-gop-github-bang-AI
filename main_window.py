@@ -193,12 +193,25 @@ class MainWindow(QMainWindow):
         self.chart_widget.update_charts(contributors)
         self.aiTextEdit.setPlainText(ket_qua.get("ai_summary", ""))
         self._set_result_buttons_enabled(True)
-        self.statusbar.showMessage("Phân tích hoàn tất.")
+        ignored_count = ket_qua.get("overview", {}).get("ignored_commit_count", 0)
+        if ignored_count:
+            self.statusbar.showMessage(
+                f"Phân tích hoàn tất. Đã loại {ignored_count} commit bot/tự động."
+            )
+        else:
+            self.statusbar.showMessage("Phân tích hoàn tất.")
 
     def hien_thi_tong_quan(self, ket_qua):
         overview = ket_qua.get("overview", {})
         self.repoNameLabel.setText(overview.get("repo_full_name", ""))
-        self.totalCommitsLabel.setText(str(overview.get("analyzed_commit_count", 0)))
+        analyzed_commit_count = overview.get("analyzed_commit_count", 0)
+        ignored_commit_count = overview.get("ignored_commit_count", 0)
+        if ignored_commit_count:
+            self.totalCommitsLabel.setText(
+                f"{analyzed_commit_count} (+{ignored_commit_count} loại)"
+            )
+        else:
+            self.totalCommitsLabel.setText(str(analyzed_commit_count))
         self.totalContributorsLabel.setText(str(overview.get("contributor_count", 0)))
         self.totalAdditionsLabel.setText(str(overview.get("total_additions", 0)))
         self.totalDeletionsLabel.setText(str(overview.get("total_deletions", 0)))

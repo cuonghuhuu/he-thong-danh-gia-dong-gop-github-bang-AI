@@ -112,6 +112,25 @@ def tao_danh_sach_commit_dang_nghi_markdown(contributors):
     return "\n".join(lines)
 
 
+def tao_danh_sach_commit_bi_loai_markdown(ignored_commits):
+    lines = ["## Commit bot/tự động đã loại", ""]
+
+    if not ignored_commits:
+        lines.append("Không có commit bot hoặc commit tự động bị loại.")
+        lines.append("")
+        return "\n".join(lines)
+
+    for commit in ignored_commits:
+        reasons = ", ".join(commit.get("reasons", []))
+        lines.append(
+            f"- `{commit.get('short_sha', '')}` - "
+            f"{commit.get('contributor', '')}: {commit.get('message', '')} ({reasons})"
+        )
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 def tao_bao_cao_markdown(ket_qua_phan_tich, tong_ket_repo=None):
     """
     Tao noi dung Markdown.
@@ -126,6 +145,7 @@ def tao_bao_cao_markdown(ket_qua_phan_tich, tong_ket_repo=None):
 
     overview = ket_qua_phan_tich.get("overview", {})
     contributors = ket_qua_phan_tich.get("contributors", [])
+    ignored_commits = ket_qua_phan_tich.get("ignored_commits", [])
     ai_summary = ket_qua_phan_tich.get("ai_summary", "")
 
     noi_dung = [
@@ -141,6 +161,8 @@ def tao_bao_cao_markdown(ket_qua_phan_tich, tong_ket_repo=None):
         f"- Tổng deletions: {overview.get('total_deletions', 0)}",
         f"- Điểm chất lượng trung bình: {overview.get('average_quality_score', 0):.2f}",
         f"- Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
+        f"- Số commit bot đã loại: {overview.get('ignored_bot_commit_count', 0)}",
+        f"- Số commit tự động đã loại: {overview.get('ignored_auto_commit_count', 0)}",
         f"- Contributor điểm cao nhất: {overview.get('top_contributor', 'Chưa có')}",
         "",
         "## Công thức điểm",
@@ -159,6 +181,7 @@ def tao_bao_cao_markdown(ket_qua_phan_tich, tong_ket_repo=None):
         tao_bang_markdown(contributors),
         "",
         tao_danh_sach_commit_dang_nghi_markdown(contributors),
+        tao_danh_sach_commit_bi_loai_markdown(ignored_commits),
         "## Nhận xét AI rule-based",
         "",
         ai_summary,
@@ -293,6 +316,8 @@ def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
             f"Số commit đã phân tích: {overview.get('analyzed_commit_count', 0)}",
             f"Điểm chất lượng trung bình: {overview.get('average_quality_score', 0):.2f}",
             f"Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
+            f"Số commit bot đã loại: {overview.get('ignored_bot_commit_count', 0)}",
+            f"Số commit tự động đã loại: {overview.get('ignored_auto_commit_count', 0)}",
             "",
             "Contributor:",
         ]
@@ -350,6 +375,8 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
         f"Tổng deletions: {overview.get('total_deletions', 0)}",
         f"Điểm chất lượng trung bình: {overview.get('average_quality_score', 0):.2f}",
         f"Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
+        f"Số commit bot đã loại: {overview.get('ignored_bot_commit_count', 0)}",
+        f"Số commit tự động đã loại: {overview.get('ignored_auto_commit_count', 0)}",
     ]
     for line in overview_lines:
         elements.append(_paragraph(line, styles["Normal"]))

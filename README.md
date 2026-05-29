@@ -8,9 +8,10 @@
 
 - Nhập repository bằng GitHub URL hoặc Owner/Repository.
 - Lấy commit từ GitHub API, bao gồm additions, deletions, file thay đổi và patch/diff khi GitHub cung cấp.
-- Gom dữ liệu theo contributor.
+- Gom dữ liệu theo contributor, có chuẩn hoá identity bằng GitHub login, email/name và alias để tránh tách một người thành nhiều contributor.
+- Bỏ qua bot và commit tự động như `actions-user`, `github-actions[bot]`, `dependabot[bot]`, `auto update report`, `automatic report`, `generated report`.
 - Tính điểm đóng góp 0-100 dựa trên số lượng và chất lượng.
-- Phát hiện commit đáng nghi như `test`, `update`, `abc`, `ok`, `nộp`, `final`, `auto update report`, `backup`, `tmp`, `demo`.
+- Phát hiện commit đáng nghi như `test`, `update`, `abc`, `ok`, `nộp`, `final`, `backup`, `tmp`, `demo`.
 - Chấm chất lượng code theo loại file thay đổi: source code, tài liệu/báo cáo, file tự động sinh hoặc file môi trường local.
 - Sinh nhận xét AI rule-based bằng tiếng Việt.
 - Hiển thị dashboard 1 trang với bảng contributor và biểu đồ.
@@ -104,6 +105,17 @@ Giao diện chính gồm:
 - Khung nhận xét AI rule-based.
 
 ## Tiêu chí đánh giá chất lượng
+
+Trước khi tính điểm, hệ thống chuẩn hoá contributor theo thứ tự ưu tiên:
+
+- GitHub login nếu commit có liên kết với tài khoản GitHub hợp lệ.
+- Email hoặc tên author nếu không có login.
+- Alias đã biết, ví dụ `Le Van Cuong` được gộp về `cuonghuhuu`.
+
+Các commit từ bot hoặc commit sinh báo cáo tự động bị loại khỏi điểm chính. Kết quả vẫn ghi lại:
+
+- `ignored_bot_commit_count`: số commit bot đã loại.
+- `ignored_auto_commit_count`: số commit tự động đã loại.
 
 Hệ thống bổ sung các chỉ số:
 

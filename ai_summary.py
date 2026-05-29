@@ -196,8 +196,21 @@ def tao_nhan_xet_ai_rule_based(ket_qua_phan_tich):
     """Nhan xet AI gia lap bang rule-based, chua can API AI that."""
     contributors = ket_qua_phan_tich.get("contributors", [])
     overview = ket_qua_phan_tich.get("overview", {})
+    ignored_count = overview.get("ignored_commit_count", 0)
+    ignored_note = (
+        "Hệ thống đã loại bỏ commit tự động/bot để kết quả đánh giá công bằng hơn."
+        if ignored_count > 0
+        else ""
+    )
 
     if not contributors:
+        if ignored_note:
+            return "\n\n".join(
+                [
+                    "Chưa có dữ liệu contributor để tạo nhận xét.",
+                    ignored_note,
+                ]
+            )
         return "Chưa có dữ liệu contributor để tạo nhận xét."
 
     top = contributors[0]
@@ -211,6 +224,9 @@ def tao_nhan_xet_ai_rule_based(ket_qua_phan_tich):
         f"Điểm chất lượng trung bình là {average_quality:.2f}, "
         f"số commit cần xem lại là {suspicious_count}."
     )
+
+    if ignored_note:
+        tong_quan = f"{tong_quan} {ignored_note}"
 
     noi_bat = (
         f"Contributor có điểm cao nhất là {top.get('contributor', 'Không xác định')} "
