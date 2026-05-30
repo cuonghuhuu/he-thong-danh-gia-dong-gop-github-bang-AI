@@ -81,6 +81,15 @@ def _dem_core_code_commit(item):
     )
 
 
+def _dem_ui_commit(item):
+    return _dem_commit_theo_loai(
+        item,
+        "ui_config_commit_count",
+        file_count_key="ui_config_file_count",
+        change_key="ui_config_changes",
+    )
+
+
 def _dem_integration_commit(item):
     return _dem_commit_theo_loai(
         item,
@@ -122,46 +131,62 @@ def xac_dinh_loai_dong_gop(item):
     suspicious_ratio = _lay_so(item, "suspicious_commit_ratio")
     documentation_count = _dem_documentation_commit(item)
     core_code_count = _dem_core_code_commit(item)
+    ui_count = _dem_ui_commit(item)
     integration_count = _dem_integration_commit(item)
+    active_days = _lay_so_nguyen(item, "active_days")
 
     if suspicious_ratio >= 0.4 and suspicious_count > 0:
-        return "Contributor có nhiều commit cần xem lại"
+        return "Có nhiều commit cần xem lại"
 
     if commit_count <= 1 and final_score < 5.0:
-        return "Contributor ít đóng góp"
+        return "Ít đóng góp"
 
     if _la_nhieu(integration_count, commit_count):
-        return "Contributor thiên về tích hợp hệ thống"
+        return "Có vai trò tích hợp"
 
     if _la_nhieu(core_code_count, commit_count):
-        return "Contributor thiên về code chính"
+        return "Thiên về code chính"
+
+    if _la_nhieu(ui_count, commit_count):
+        return "Thiên về giao diện"
 
     if _la_nhieu(documentation_count, commit_count):
-        return "Contributor thiên về tài liệu/báo cáo"
+        return "Thiên về tài liệu/báo cáo"
+
+    if active_days >= 2 and commit_count >= 3:
+        return "Đóng góp đều theo thời gian"
 
     if final_score >= 7.0 and quality_score >= 7.5 and penalty_score < 2.7:
-        return "Contributor có đóng góp chất lượng"
+        return "Đóng góp chất lượng"
 
     if commit_count >= 3 and quality_score < 6.0:
-        return "Contributor tích cực nhưng cần cải thiện chất lượng"
+        return "Cần cải thiện commit message"
 
-    return "Contributor cần theo dõi thêm"
+    return "Cần theo dõi thêm"
 
 
 def _mo_ta_muc_do_tham_gia(item):
     commit_count = _lay_so_nguyen(item, "commit_count")
     final_score = _lay_diem_hien_thi(item, "final_score_display", "final_score", "score")
     total_changes = _lay_so_nguyen(item, "total_changes")
+    active_days = _lay_so_nguyen(item, "active_days")
+    coding_sessions = _lay_so_nguyen(item, "coding_sessions")
 
     if commit_count >= 5 and final_score >= 7.0:
         return (
             f"tham gia tích cực với {commit_count} commit, điểm tổng hợp "
-            f"{final_score:.1f}/10 và khối lượng thay đổi {total_changes} dòng"
+            f"{final_score:.1f}/10, {active_days} ngày hoạt động, "
+            f"{coding_sessions} phiên làm việc và khối lượng thay đổi {total_changes} dòng"
         )
     if commit_count >= 3:
         return (
             f"tham gia ở mức khá với {commit_count} commit; cần xem thêm chất lượng "
             "và mức tác động của từng commit"
+        )
+    if commit_count == 2:
+        return (
+            f"tham gia ở mức vừa với 2 commit, {active_days} ngày hoạt động và "
+            f"{coding_sessions} phiên làm việc; nên xem cùng chất lượng từng commit"
         )
     if commit_count == 1:
         return (
@@ -169,6 +194,20 @@ def _mo_ta_muc_do_tham_gia(item):
             "kết luận nên được xem cùng nội dung commit"
         )
     return "mức độ tham gia còn thấp hoặc chưa có commit được tính điểm"
+
+
+def _mo_ta_thoi_gian_code(item):
+    hours = _lay_so(item, "estimated_coding_hours")
+    sessions = _lay_so_nguyen(item, "coding_sessions")
+    active_days = _lay_so_nguyen(item, "active_days")
+    time_score = _lay_diem_hien_thi(item, "estimated_time_score_display", "estimated_time_score")
+
+    if hours <= 0:
+        return "chưa đủ dữ liệu commit_date để ước tính thời gian code"
+    return (
+        f"ước tính khoảng {hours:.1f} giờ hoạt động code qua {sessions} phiên làm việc, "
+        f"{active_days} ngày hoạt động; điểm thời gian {time_score:.1f}/10"
+    )
 
 
 def _mo_ta_chat_luong(item):
@@ -215,14 +254,21 @@ def _tao_diem_manh(item):
     quality_score = _lay_diem_hien_thi(item, "quality_score_display", "quality_score")
     documentation_count = _dem_documentation_commit(item)
     core_code_count = _dem_core_code_commit(item)
+    ui_count = _dem_ui_commit(item)
     integration_count = _dem_integration_commit(item)
+    active_days = _lay_so_nguyen(item, "active_days")
+    coding_sessions = _lay_so_nguyen(item, "coding_sessions")
 
     if quality_score >= 7.5:
         strengths.append(f"đóng góp có chất lượng tốt, đạt {quality_score:.1f}/10")
     if _la_nhieu(core_code_count, commit_count):
         strengths.append("thiên về code chính, có tác động trực tiếp đến logic/source code")
+    if _la_nhieu(ui_count, commit_count):
+        strengths.append("có đóng góp vào giao diện/cấu hình hợp lệ")
     if _la_nhieu(integration_count, commit_count):
         strengths.append("có vai trò tích hợp hệ thống, kết nối các phần của dự án")
+    if active_days >= 2 and coding_sessions >= 2:
+        strengths.append("đóng góp tương đối đều theo thời gian")
     if _la_nhieu(documentation_count, commit_count):
         strengths.append("đóng góp nhiều cho tài liệu/báo cáo, giúp dự án dễ theo dõi hơn")
     if _diem_hien_thi(_lay_so(item, "commit_message_score")) >= 7.5:
@@ -254,6 +300,8 @@ def _tao_han_che(item):
         weaknesses.append("đóng góp nghiêng về tài liệu/báo cáo nên tác động kỹ thuật chưa nhiều")
     if _lay_so_nguyen(item, "generated_file_count") > 0:
         weaknesses.append("có thay đổi file môi trường hoặc file tự động sinh")
+    if _lay_so(item, "estimated_coding_hours") < 1 and commit_count <= 1:
+        weaknesses.append("dữ liệu thời gian còn ít nên khó đánh giá độ đều đóng góp")
 
     if weaknesses:
         return "; ".join(weaknesses)
@@ -321,6 +369,7 @@ def tao_noi_dung_nhan_xet(item):
     return "\n".join(
         [
             f"Mức độ tham gia: {_mo_ta_muc_do_tham_gia(item)}.",
+            f"Thời gian code ước tính: {_mo_ta_thoi_gian_code(item)}.",
             f"Chất lượng đóng góp: {_mo_ta_chat_luong(item)}.",
             f"Điểm mạnh: {_tao_diem_manh(item)}.",
             f"Điểm hạn chế: {_tao_han_che(item)}.",
@@ -333,23 +382,45 @@ def tao_noi_dung_nhan_xet(item):
 def tao_nhan_xet_ngan(item):
     quality_score = _lay_diem_hien_thi(item, "quality_score_display", "quality_score")
     final_score = _lay_diem_hien_thi(item, "final_score_display", "final_score", "score")
+    estimated_hours = _lay_so(item, "estimated_coding_hours")
     suspicious_count = _lay_so_nguyen(item, "suspicious_commit_count")
     commit_count = _lay_so_nguyen(item, "commit_count")
     documentation_count = _dem_documentation_commit(item)
     core_code_count = _dem_core_code_commit(item)
     integration_count = _dem_integration_commit(item)
+    prefix = f"Đạt {final_score:.1f}/10, ước tính {estimated_hours:.1f} giờ code"
 
     if _la_nhieu(suspicious_count, commit_count, minimum=2, ratio=0.3):
-        return f"Đạt {final_score:.1f}/10, có nhiều commit cần xem lại."
+        return f"{prefix}, có nhiều commit cần xem lại."
     if quality_score >= 7.5:
-        return f"Đạt {final_score:.1f}/10, chất lượng commit tốt."
+        return f"{prefix}, chất lượng commit tốt."
     if _la_nhieu(integration_count, commit_count):
-        return f"Đạt {final_score:.1f}/10, nổi bật ở vai trò tích hợp hệ thống."
+        return f"{prefix}, nổi bật ở vai trò tích hợp hệ thống."
     if _la_nhieu(core_code_count, commit_count):
-        return f"Đạt {final_score:.1f}/10, đóng góp tốt vào code chính."
+        return f"{prefix}, đóng góp tốt vào code chính."
     if _la_nhieu(documentation_count, commit_count):
-        return f"Đạt {final_score:.1f}/10, đóng góp thiên về tài liệu/báo cáo."
-    return f"Đạt {final_score:.1f}/10, cần tăng tác động kỹ thuật."
+        return f"{prefix}, đóng góp thiên về tài liệu/báo cáo."
+    return f"{prefix}, cần tăng tác động kỹ thuật."
+
+
+def tao_nhan_phu(item):
+    tags = []
+    commit_count = _lay_so_nguyen(item, "commit_count")
+    if _la_nhieu(_dem_core_code_commit(item), commit_count):
+        tags.append("Thiên về code chính")
+    if _la_nhieu(_dem_ui_commit(item), commit_count):
+        tags.append("Thiên về giao diện")
+    if _la_nhieu(_dem_documentation_commit(item), commit_count):
+        tags.append("Thiên về tài liệu/báo cáo")
+    if _la_nhieu(_dem_integration_commit(item), commit_count):
+        tags.append("Có vai trò tích hợp")
+    if _lay_so_nguyen(item, "active_days") >= 2 and _lay_so_nguyen(item, "coding_sessions") >= 2:
+        tags.append("Đóng góp đều theo thời gian")
+    if _lay_so(item, "commit_message_score") < 55:
+        tags.append("Cần cải thiện commit message")
+    if _lay_so_nguyen(item, "suspicious_commit_count") >= 2:
+        tags.append("Có nhiều commit cần xem lại")
+    return tags or ["Cần theo dõi thêm"]
 
 
 def tao_nhan_xet_don_gian(danh_sach_xep_hang):
@@ -376,6 +447,7 @@ def tao_nhan_xet_don_gian(danh_sach_xep_hang):
 
         thong_tin_moi["contribution_level"] = contribution_level
         thong_tin_moi["contribution_type"] = contribution_type
+        thong_tin_moi["contribution_tags"] = tao_nhan_phu(thong_tin_moi)
         thong_tin_moi["ai_summary"] = tao_noi_dung_nhan_xet(thong_tin_moi)
         thong_tin_moi["short_summary"] = tao_nhan_xet_ngan(thong_tin_moi)
         ket_qua.append(thong_tin_moi)
@@ -433,6 +505,8 @@ def tao_nhan_xet_ai_rule_based(ket_qua_phan_tich):
         _diem_hien_thi(overview.get("average_quality_score", 0)),
     )
     suspicious_count = overview.get("suspicious_commit_count", 0)
+    total_hours = _lay_so(overview, "total_estimated_coding_hours")
+    total_sessions = _lay_so_nguyen(overview, "total_coding_sessions")
     top_final_score = top.get("final_score_display", _diem_hien_thi(top.get("final_score", 0)))
     top_quality_score = top.get("quality_score_display", _diem_hien_thi(top.get("quality_score", 0)))
     top_penalty_score = top.get("penalty_score_display", _diem_tru_hien_thi(top.get("penalty_score", 0)))
@@ -442,7 +516,8 @@ def tao_nhan_xet_ai_rule_based(ket_qua_phan_tich):
         f"{overview.get('contributor_count', 0)} contributor trong "
         f"{overview.get('analyzed_commit_count', 0)} commit đã phân tích. "
         f"Điểm chất lượng trung bình là {average_quality:.1f}/10, "
-        f"số commit cần xem lại là {suspicious_count}."
+        f"số commit cần xem lại là {suspicious_count}. "
+        f"Thời gian code ước tính toàn repo khoảng {total_hours:.1f} giờ qua {total_sessions} phiên."
     )
 
     tong_quan = f"{tong_quan} {data_handling_note}"
