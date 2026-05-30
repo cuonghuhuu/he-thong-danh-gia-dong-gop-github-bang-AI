@@ -197,21 +197,24 @@ def tao_nhan_xet_ai_rule_based(ket_qua_phan_tich):
     contributors = ket_qua_phan_tich.get("contributors", [])
     overview = ket_qua_phan_tich.get("overview", {})
     ignored_count = overview.get("ignored_commit_count", 0)
-    ignored_note = (
-        "Hệ thống đã loại bỏ commit tự động/bot để kết quả đánh giá công bằng hơn."
-        if ignored_count > 0
-        else ""
+    normalized_note = (
+        "Hệ thống đã chuẩn hóa contributor theo GitHub login, alias, author name/email "
+        "để tránh tách sai cùng một người."
     )
+    ignored_note = (
+        "Hệ thống đã loại bỏ commit bot/tự động để kết quả đánh giá công bằng hơn."
+        if ignored_count > 0
+        else "Hệ thống đã kiểm tra và sẽ loại bỏ commit bot/tự động nếu phát hiện."
+    )
+    data_handling_note = f"{normalized_note} {ignored_note}"
 
     if not contributors:
-        if ignored_note:
-            return "\n\n".join(
-                [
-                    "Chưa có dữ liệu contributor để tạo nhận xét.",
-                    ignored_note,
-                ]
-            )
-        return "Chưa có dữ liệu contributor để tạo nhận xét."
+        return "\n\n".join(
+            [
+                "Chưa có dữ liệu contributor để tạo nhận xét.",
+                data_handling_note,
+            ]
+        )
 
     top = contributors[0]
     average_quality = overview.get("average_quality_score", 0)
@@ -225,8 +228,7 @@ def tao_nhan_xet_ai_rule_based(ket_qua_phan_tich):
         f"số commit cần xem lại là {suspicious_count}."
     )
 
-    if ignored_note:
-        tong_quan = f"{tong_quan} {ignored_note}"
+    tong_quan = f"{tong_quan} {data_handling_note}"
 
     noi_bat = (
         f"Contributor có điểm cao nhất là {top.get('contributor', 'Không xác định')} "
