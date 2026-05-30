@@ -281,6 +281,40 @@
          </property>
         </widget>
        </item>
+       <item row="3" column="0">
+        <widget class="QLabel" name="totalCodingHoursTitleLabel">
+         <property name="text">
+          <string>Tổng giờ code ước tính</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="1">
+        <widget class="QLabel" name="totalCodingHoursLabel">
+         <property name="styleSheet">
+          <string notr="true">font-weight: 600;</string>
+         </property>
+         <property name="text">
+          <string>0.0h</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="2">
+        <widget class="QLabel" name="totalCodingSessionsTitleLabel">
+         <property name="text">
+          <string>Số phiên làm việc</string>
+         </property>
+        </widget>
+       </item>
+       <item row="3" column="3">
+        <widget class="QLabel" name="totalCodingSessionsLabel">
+         <property name="styleSheet">
+          <string notr="true">font-weight: 600;</string>
+         </property>
+         <property name="text">
+          <string>0</string>
+         </property>
+        </widget>
+       </item>
       </layout>
      </widget>
     </item>
@@ -322,7 +356,10 @@
            <string>Giải thích:
 - Số commit: số lần thành viên đẩy thay đổi lên GitHub.
 - Dòng thêm/xoá: số dòng code được thêm hoặc xoá.
-- Điểm chất lượng và điểm cuối hiển thị theo thang /10.
+- Điểm chất lượng: đánh giá chất lượng commit/code, gồm commit message, file code chính, commit cần xem lại và mức độ thay đổi có ý nghĩa.
+- Giờ code ước tính: suy ra từ khoảng cách giữa các commit, mỗi phiên tối đa 6 giờ nên chỉ là tham khảo.
+- Điểm cuối: điểm tổng hợp sau khi xét số commit, dòng code, file thay đổi, điểm chất lượng, độ đều đóng góp và điểm trừ.
+- Vì vậy điểm cuối có thể cao hơn điểm chất lượng nếu thành viên có nhiều đóng góp về số lượng, nhưng vẫn còn một số commit cần xem lại.
 - Điểm trừ hiển thị theo thang 0-10, chuẩn hoá từ penalty nội bộ tối đa 30 điểm.
 - Commit cần xem lại: commit có dấu hiệu chưa rõ ràng như message quá ngắn, quá chung chung, chỉ sửa tài liệu/báo cáo hoặc file môi trường/local.</string>
           </property>
@@ -338,7 +375,7 @@
         <item>
          <widget class="QGroupBox" name="chartGroupBox">
           <property name="minimumHeight">
-           <number>430</number>
+           <number>560</number>
           </property>
           <property name="title">
            <string>Biểu đồ đánh giá</string>

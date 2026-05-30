@@ -28,6 +28,7 @@ AUTO_COMMIT_MESSAGE_PHRASES = (
     "auto update report",
     "automatic report",
     "generated report",
+    "update generated report",
 )
 
 
@@ -187,6 +188,17 @@ def _canonicalize_identity(value):
     return CONTRIBUTOR_ALIASES.get(normalized, normalized)
 
 
+def normalize_contributor_name(name, email=None, login=None):
+    """Chuan hoa khoa contributor; alias chi dung de gop danh tinh, khong cong diem."""
+    if _la_github_login_hop_le(login):
+        return _canonicalize_identity(login)
+    if email:
+        return _canonicalize_identity(email)
+    if name:
+        return _canonicalize_identity(name)
+    return "khong xac dinh"
+
+
 def _lay_alias_da_biet(*values):
     for value in values:
         for candidate in _identity_candidates(value):
@@ -250,6 +262,12 @@ def _lay_thong_tin_identity_raw(commit):
             or ""
         ),
         "message": commit.get("message") or commit_info.get("message") or "",
+        "commit_date": (
+            commit.get("commit_date")
+            or commit_author.get("date")
+            or commit_committer.get("date")
+            or ""
+        ),
     }
 
 
@@ -305,6 +323,7 @@ def _tao_commit_day_du(commit, chi_tiet=None):
         "committer_name": contributor["committer_name"],
         "committer_email": contributor["committer_email"],
         "message": contributor["message"],
+        "commit_date": contributor["commit_date"],
         "additions": _lay_so_nguyen_an_toan(stats.get("additions", 0)),
         "deletions": _lay_so_nguyen_an_toan(stats.get("deletions", 0)),
         "changed_files": changed_files,
@@ -338,33 +357,33 @@ def normalize_contributor(commit):
     )
 
     if _la_github_login_hop_le(github_login):
-        khoa_contributor = _canonicalize_identity(github_login)
+        khoa_contributor = normalize_contributor_name(author_name, author_email, github_login)
         ten_hien_thi = khoa_contributor
     elif alias_da_biet:
         khoa_contributor = alias_da_biet
         ten_hien_thi = alias_da_biet
     elif author_email:
-        khoa_contributor = _canonicalize_identity(author_email)
+        khoa_contributor = normalize_contributor_name(author_name, author_email)
         ten_hien_thi = (
             khoa_contributor
             if khoa_contributor != _normalize_identity_text(author_email)
             else author_name or author_email
         )
     elif author_name:
-        khoa_contributor = _canonicalize_identity(author_name)
+        khoa_contributor = normalize_contributor_name(author_name)
         ten_hien_thi = khoa_contributor
     elif _la_github_login_hop_le(committer_login):
-        khoa_contributor = _canonicalize_identity(committer_login)
+        khoa_contributor = normalize_contributor_name(committer_name, committer_email, committer_login)
         ten_hien_thi = khoa_contributor
     elif committer_email:
-        khoa_contributor = _canonicalize_identity(committer_email)
+        khoa_contributor = normalize_contributor_name(committer_name, committer_email)
         ten_hien_thi = (
             khoa_contributor
             if khoa_contributor != _normalize_identity_text(committer_email)
             else committer_name or committer_email
         )
     elif committer_name:
-        khoa_contributor = _canonicalize_identity(committer_name)
+        khoa_contributor = normalize_contributor_name(committer_name)
         ten_hien_thi = khoa_contributor
     else:
         khoa_contributor = "Khong xac dinh"
@@ -397,6 +416,7 @@ def normalize_contributor(commit):
         "committer_name": committer_name,
         "committer_email": committer_email,
         "message": raw["message"],
+        "commit_date": raw["commit_date"],
         "is_bot": is_bot,
         "is_auto_commit": is_auto_commit,
         "is_ignored": bool(ignored_reasons),
@@ -584,6 +604,7 @@ def lay_danh_sach_commit_chi_tiet(
             "committer_name": commit.get("committer_name", ""),
             "committer_email": commit.get("committer_email", ""),
             "message": commit.get("message", ""),
+            "commit_date": commit.get("commit_date", ""),
             "is_bot": bool(commit.get("is_bot", False)),
             "is_auto_commit": bool(commit.get("is_auto_commit", False)),
             "is_ignored": bool(commit.get("is_ignored", False)),
@@ -596,6 +617,7 @@ def lay_danh_sach_commit_chi_tiet(
                     **metadata,
                     "additions": 0,
                     "deletions": 0,
+                    "commit_date": metadata.get("commit_date", ""),
                     "changed_files": [],
                     "files_detail": [],
                 }
@@ -626,6 +648,7 @@ def lay_danh_sach_commit_chi_tiet(
                     "committer_email", metadata["committer_email"]
                 ),
                 "message": chi_tiet.get("message", metadata["message"]),
+                "commit_date": chi_tiet.get("commit_date", metadata["commit_date"]),
                 "is_bot": bool(chi_tiet.get("is_bot", metadata["is_bot"])),
                 "is_auto_commit": bool(
                     chi_tiet.get("is_auto_commit", metadata["is_auto_commit"])
@@ -641,6 +664,7 @@ def lay_danh_sach_commit_chi_tiet(
                 **metadata,
                 "additions": chi_tiet.get("additions", 0),
                 "deletions": chi_tiet.get("deletions", 0),
+                "commit_date": chi_tiet.get("commit_date", metadata["commit_date"]),
                 "changed_files": chi_tiet.get("changed_files", []),
                 "changed_files_count": chi_tiet.get("changed_files_count", 0),
                 "files_detail": chi_tiet.get("files_detail", []),

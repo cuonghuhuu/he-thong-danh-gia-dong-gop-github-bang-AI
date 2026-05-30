@@ -135,22 +135,26 @@ class MainWindow(QMainWindow):
 
         self.contributorTable.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.contributorTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.contributorTable.setAlternatingRowColors(True)
+        self.contributorTable.setShowGrid(True)
         self.contributorTable.setWordWrap(True)
         self.contributorTable.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.contributorTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-        self.contributorTable.horizontalHeader().setStretchLastSection(True)
+        self.contributorTable.horizontalHeader().setStretchLastSection(False)
         self.contributorTable.horizontalHeader().setMinimumSectionSize(80)
         self.contributorTable.verticalHeader().setVisible(False)
 
         if hasattr(self, "suspiciousCommitTable"):
             self.suspiciousCommitTable.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
             self.suspiciousCommitTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+            self.suspiciousCommitTable.setAlternatingRowColors(True)
+            self.suspiciousCommitTable.setShowGrid(True)
             self.suspiciousCommitTable.setWordWrap(True)
             self.suspiciousCommitTable.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
             self.suspiciousCommitTable.horizontalHeader().setSectionResizeMode(
                 QHeaderView.ResizeMode.Interactive
             )
-            self.suspiciousCommitTable.horizontalHeader().setStretchLastSection(True)
+            self.suspiciousCommitTable.horizontalHeader().setStretchLastSection(False)
             self.suspiciousCommitTable.horizontalHeader().setMinimumSectionSize(90)
             self.suspiciousCommitTable.verticalHeader().setVisible(False)
             self.hien_thi_commit_can_xem_lai([])
@@ -280,6 +284,12 @@ class MainWindow(QMainWindow):
         )
         self.averageQualityLabel.setText(f"{average_quality:.1f}/10")
         self.suspiciousCommitLabel.setText(str(overview.get("suspicious_commit_count", 0)))
+        if hasattr(self, "totalCodingHoursLabel"):
+            self.totalCodingHoursLabel.setText(
+                f"{overview.get('total_estimated_coding_hours', 0):.1f}h"
+            )
+        if hasattr(self, "totalCodingSessionsLabel"):
+            self.totalCodingSessionsLabel.setText(str(overview.get("total_coding_sessions", 0)))
 
         if hasattr(self, "topContributorLabel"):
             self.topContributorLabel.setText(
@@ -297,10 +307,13 @@ class MainWindow(QMainWindow):
             "Số commit",
             "Dòng thêm",
             "Dòng xoá",
-            "File đã sửa",
+            "File sửa",
+            "Giờ code ước tính",
+            "Số ngày hoạt động",
             "Điểm chất lượng /10",
-            "Điểm trừ /10",
+            "Điểm thời gian /10",
             "Điểm cuối /10",
+            "Điểm trừ",
             "Mức đánh giá",
             "Commit cần xem lại",
             "Nhận xét ngắn",
@@ -316,9 +329,12 @@ class MainWindow(QMainWindow):
                 item.get("total_additions", 0),
                 item.get("total_deletions", 0),
                 item.get("files_changed", item.get("changed_files_count", 0)),
+                f"{item.get('estimated_coding_hours', 0):.1f}",
+                item.get("active_days", 0),
                 f"{_lay_diem_hien_thi(item, 'quality_score_display', 'quality_score'):.1f}",
-                f"{_lay_diem_tru_hien_thi(item):.1f}",
+                f"{_lay_diem_hien_thi(item, 'estimated_time_score_display', 'estimated_time_score'):.1f}",
                 f"{_lay_diem_hien_thi(item, 'final_score_display', 'final_score', 'score'):.1f}",
+                f"{_lay_diem_tru_hien_thi(item):.1f}",
                 item.get("contribution_level", ""),
                 item.get("suspicious_commit_count", 0),
                 item.get("short_summary", item.get("ai_summary", "")),
@@ -326,7 +342,9 @@ class MainWindow(QMainWindow):
 
             for col, value in enumerate(values):
                 table_item = QTableWidgetItem(str(value))
-                if col not in {0, 8, 10}:
+                if col in {1, 4, 5, 6, 7, 8, 9, 10, 12}:
+                    table_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                elif col in {2, 3}:
                     table_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 self.contributorTable.setItem(row, col, table_item)
 
@@ -335,17 +353,20 @@ class MainWindow(QMainWindow):
 
     def _dat_do_rong_cot_contributor(self):
         column_widths = {
-            0: 150,
-            1: 95,
+            0: 140,
+            1: 90,
             2: 100,
             3: 100,
-            4: 105,
-            5: 155,
-            6: 110,
-            7: 120,
-            8: 155,
-            9: 145,
-            10: 300,
+            4: 90,
+            5: 130,
+            6: 125,
+            7: 140,
+            8: 130,
+            9: 120,
+            10: 100,
+            11: 160,
+            12: 150,
+            13: 300,
         }
         for column, width in column_widths.items():
             self.contributorTable.setColumnWidth(column, width)
@@ -390,14 +411,14 @@ class MainWindow(QMainWindow):
             for row_index, row_values in enumerate(rows):
                 for col, value in enumerate(row_values):
                     table_item = QTableWidgetItem(str(value))
-                    if col == 4:
+                    if col in {1, 4}:
                         table_item.setTextAlignment(
                             Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
                         )
                     self.suspiciousCommitTable.setItem(row_index, col, table_item)
 
         self.suspiciousCommitTable.resizeRowsToContents()
-        for column, width in {0: 130, 1: 95, 2: 260, 3: 310, 4: 145}.items():
+        for column, width in {0: 130, 1: 90, 2: 320, 3: 420, 4: 150}.items():
             self.suspiciousCommitTable.setColumnWidth(column, width)
 
     def _kiem_tra_co_ket_qua(self):

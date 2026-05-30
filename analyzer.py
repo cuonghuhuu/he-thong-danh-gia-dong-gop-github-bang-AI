@@ -15,27 +15,30 @@ from github_client import normalize_contributor
 
 SOURCE_CODE_EXTENSIONS = {
     ".py",
-    ".ui",
-    ".qss",
     ".toml",
-    ".yaml",
-    ".yml",
-    ".json",
-    ".ini",
 }
 SOURCE_CODE_FILENAMES = {
     "requirements.txt",
     "pyproject.toml",
     "setup.py",
 }
+UI_CONFIG_EXTENSIONS = {
+    ".ui",
+    ".qss",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".ini",
+}
 DOC_REPORT_EXTENSIONS = {".md", ".rst", ".txt"}
 DOC_REPORT_FILENAMES = {"readme.md", "report.md"}
-DOC_REPORT_PREFIXES = ("docs/", "reports/")
+DOC_REPORT_PREFIXES = ("docs/",)
 LOCAL_GENERATED_PREFIXES = (
     ".idea/",
     ".venv/",
     "venv/",
     "env/",
+    "reports/",
     "__pycache__/",
     ".pytest_cache/",
     ".mypy_cache/",
@@ -90,12 +93,19 @@ GOOD_ACTION_WORDS = {
     "create",
     "implement",
     "remove",
+    "optimize",
+    "document",
     "validate",
     "support",
     "export",
 }
 TECHNICAL_WORDS = {
+    "ai",
+    "summary",
+    "dashboard",
+    "analyzer",
     "github",
+    "client",
     "token",
     "api",
     "error",
@@ -108,6 +118,20 @@ TECHNICAL_WORDS = {
     "score",
     "handler",
     "validation",
+    "readme",
+    "dependency",
+    "dependencies",
+    "structure",
+}
+INTEGRATION_WORDS = {
+    "merge",
+    "integrate",
+    "integration",
+    "resolve",
+    "conflict",
+    "connect",
+    "combine",
+    "structure",
 }
 
 
@@ -168,8 +192,8 @@ def _file_name(path):
     return PurePosixPath((path or "").replace("\\", "/")).name.lower()
 
 
-def phan_loai_file(path):
-    """Phan loai file de tinh diem tac dong code."""
+def classify_file(path):
+    """Phan loai file theo muc do anh huong de cham diem cong bang hon."""
     normalized_path = (path or "").replace("\\", "/").strip()
     lower_path = normalized_path.lower()
     filename = _file_name(lower_path)
@@ -183,7 +207,10 @@ def phan_loai_file(path):
         return "generated"
 
     if suffix in SOURCE_CODE_EXTENSIONS or filename in SOURCE_CODE_FILENAMES:
-        return "source"
+        return "core"
+
+    if suffix in UI_CONFIG_EXTENSIONS:
+        return "ui_config"
 
     if (
         lower_path.startswith(DOC_REPORT_PREFIXES)
@@ -193,6 +220,24 @@ def phan_loai_file(path):
         return "document"
 
     return "other"
+
+
+def phan_loai_file(path):
+    """Ham cu giu tuong thich voi cac phan code/report dang dung."""
+    file_type = classify_file(path)
+    if file_type in {"core", "ui_config"}:
+        return "source"
+    return file_type
+
+
+def _file_impact_weight(file_type):
+    return {
+        "core": 1.0,
+        "ui_config": 0.75,
+        "document": 0.38,
+        "other": 0.45,
+        "generated": 0.05,
+    }.get(file_type, 0.35)
 
 
 def _dem_dong_logic(files_detail):
@@ -248,26 +293,39 @@ def _thong_ke_file_commit(commit):
         ]
 
     stats = {
+        "core_files": set(),
+        "ui_config_files": set(),
         "source_files": set(),
         "document_files": set(),
         "generated_files": set(),
         "other_files": set(),
+        "core_changes": 0,
+        "ui_config_changes": 0,
         "source_changes": 0,
         "document_changes": 0,
         "generated_changes": 0,
         "other_changes": 0,
+        "file_impact_raw": 0.0,
     }
 
     for file_info in files_detail:
         filename = file_info.get("filename", "")
-        file_type = phan_loai_file(filename)
+        file_type = classify_file(filename)
         changes = file_info.get("changes")
         if changes is None:
             changes = file_info.get("additions", 0) + file_info.get("deletions", 0)
         changes = max(int(changes or 0), 0)
+        stats["file_impact_raw"] += changes * _file_impact_weight(file_type)
 
-        if file_type == "source":
+        if file_type == "core":
+            stats["core_files"].add(filename)
             stats["source_files"].add(filename)
+            stats["core_changes"] += changes
+            stats["source_changes"] += changes
+        elif file_type == "ui_config":
+            stats["ui_config_files"].add(filename)
+            stats["source_files"].add(filename)
+            stats["ui_config_changes"] += changes
             stats["source_changes"] += changes
         elif file_type == "document":
             stats["document_files"].add(filename)
@@ -282,99 +340,195 @@ def _thong_ke_file_commit(commit):
     return stats
 
 
-def danh_gia_commit_message(message):
-    """Cham diem message theo rule mem, khong phat tuyet doi chu 'fix'."""
+def _is_initial_commit(message):
+    normalized = _normalize_text(message)
+    return normalized in {"initial commit", "init", "first commit"}
+
+
+def _is_merge_or_integration_message(message):
+    normalized = _normalize_text(message)
+    words = set(normalized.split())
+    return (
+        normalized.startswith("merge ")
+        or "merge pull request" in normalized
+        or "resolve conflict" in normalized
+        or bool(words & INTEGRATION_WORDS)
+    )
+
+
+def score_commit_message(message):
+    """Cham diem commit message theo thang 0-10."""
     first_line = _first_line(message)
     normalized = _normalize_text(first_line)
     words = normalized.split()
     reasons = []
 
     if not normalized:
-        return 10.0, ["commit message trống"]
+        return 1.0, ["commit message trống"]
 
-    score = 70.0
+    if _is_initial_commit(first_line):
+        return 7.0, []
+
+    score = 6.5
     word_count = len(words)
     has_good_action = any(word in GOOD_ACTION_WORDS for word in words)
     has_technical_word = any(word in TECHNICAL_WORDS for word in words)
+    has_integration_word = any(word in INTEGRATION_WORDS for word in words)
 
     if normalized in SUSPICIOUS_EXACT_MESSAGES:
-        score = 25.0
+        score = 2.5
         reasons.append("commit message quá chung chung")
     elif word_count <= 2:
-        score = 45.0
-        reasons.append("commit message quá ngắn")
+        if has_good_action and (has_technical_word or "readme" in words):
+            score = 6.2
+        else:
+            score = 4.0
+            reasons.append("commit message quá ngắn")
 
     for phrase, reason in SUSPICIOUS_PHRASES.items():
         if phrase in normalized:
-            score = min(score, 35.0)
+            score = min(score, 3.5)
             if reason not in reasons:
                 reasons.append(reason)
 
     # "fix" don le la yeu, nhung "Fix GitHub token handling" la ro nghia.
-    if "fix" in words and word_count >= 4 and has_technical_word:
-        score = max(score, 82.0)
+    if "fix" in words and word_count >= 4 and (has_technical_word or has_integration_word):
+        score = max(score, 8.2)
         reasons = [reason for reason in reasons if reason != "commit message quá chung chung"]
 
+    if 10 <= len(first_line) <= 80:
+        score += 0.8
+    elif len(first_line) < 10 and not reasons:
+        score -= 0.8
+        reasons.append("commit message nên mô tả rõ hơn")
     if word_count >= 5 and has_good_action:
-        score += 10
-    if word_count >= 4 and has_technical_word:
-        score += 8
+        score += 1.0
+    if word_count >= 4 and (has_technical_word or has_integration_word):
+        score += 0.8
     if len(first_line) > 72:
-        score -= 6
+        score -= 0.6
         reasons.append("commit message hơi dài, nên viết gọn hơn")
 
-    return _clamp(score), reasons
+    return _clamp(score, 0, 10), reasons
 
 
-def danh_gia_y_nghia_thay_doi(commit, file_stats):
+def danh_gia_commit_message(message):
+    """Wrapper cu: tra diem noi bo 0-100 de khong pha phan con lai."""
+    score_10, reasons = score_commit_message(message)
+    return score_10 * 10, reasons
+
+
+def score_meaningful_change(commit, file_stats):
+    """Cham diem y nghia thay doi va tac dong code theo thang 0-10."""
     additions = max(commit.get("additions", 0), 0)
     deletions = max(commit.get("deletions", 0), 0)
     total_changes = additions + deletions
     files_detail = commit.get("files_detail") or []
     logic_count, changed_lines, non_empty_changed_lines = _dem_dong_logic(files_detail)
     reasons = []
+    message = commit.get("message", "")
+    is_initial = _is_initial_commit(message)
+    is_merge = _is_merge_or_integration_message(message)
+    core_count = len(file_stats["core_files"])
+    ui_count = len(file_stats["ui_config_files"])
+    doc_count = len(file_stats["document_files"])
+    generated_count = len(file_stats["generated_files"])
+    changed_file_count = (
+        core_count + ui_count + doc_count + len(file_stats["other_files"]) + generated_count
+    )
 
     if total_changes <= 0:
-        score = 10.0
+        score = 1.0
         reasons.append("commit không có thay đổi additions/deletions đáng kể")
     elif total_changes <= 2:
-        score = 30.0
+        score = 3.0
         reasons.append("thay đổi quá nhỏ")
     elif total_changes <= 10:
-        score = 52.0
+        score = 5.2
     elif total_changes <= 200:
-        score = 72.0
+        score = 7.2
     else:
-        score = 82.0
+        score = 8.2
 
-    if file_stats["source_files"]:
-        score += 10
+    if core_count:
+        score += 1.2
+    elif ui_count:
+        score += 0.8
     if logic_count > 0:
-        score += min(12, logic_count * 3)
-    if file_stats["document_files"] and not file_stats["source_files"]:
-        score -= 18
+        score += min(1.2, logic_count * 0.3)
+    if changed_file_count >= 3 and (core_count or ui_count):
+        score += 0.6
+    if doc_count and not file_stats["source_files"]:
+        if total_changes >= 40 and not generated_count:
+            score = max(score, 5.8)
+        else:
+            score -= 1.4
         reasons.append("commit chủ yếu sửa tài liệu/báo cáo")
-    if file_stats["generated_files"]:
-        score -= 25
+    if generated_count:
+        score -= 2.5
         reasons.append("commit có sửa file môi trường hoặc file tự động sinh")
     if changed_lines > 0 and non_empty_changed_lines == 0:
-        score = min(score, 25.0)
+        score = min(score, 2.5)
         reasons.append("thay đổi chủ yếu là khoảng trắng hoặc dòng trống")
+    if is_initial and changed_file_count >= 3 and generated_count < changed_file_count:
+        score = max(score, 7.2)
+        reasons = [reason for reason in reasons if reason != "thay đổi quá nhỏ"]
+    if is_merge and not generated_count:
+        score = max(score, 6.2)
 
-    return _clamp(score), reasons
+    code_impact_score = score_code_impact(file_stats, total_changes, is_merge=is_merge)
+    return _clamp(score, 0, 10), code_impact_score, reasons
+
+
+def danh_gia_y_nghia_thay_doi(commit, file_stats):
+    meaningful_score, _code_impact_score, reasons = score_meaningful_change(commit, file_stats)
+    return meaningful_score * 10, reasons
+
+
+def score_code_impact(file_stats, total_changes=0, is_merge=False):
+    """Cham diem tac dong vao code/file theo thang 0-10."""
+    core_count = len(file_stats["core_files"])
+    ui_count = len(file_stats["ui_config_files"])
+    doc_count = len(file_stats["document_files"])
+    generated_count = len(file_stats["generated_files"])
+    other_count = len(file_stats["other_files"])
+
+    if core_count:
+        score = 7.5 + min(1.8, core_count * 0.45)
+    elif ui_count:
+        score = 6.5 + min(1.5, ui_count * 0.4)
+    elif doc_count and not generated_count:
+        score = 4.8 + (1.0 if total_changes >= 40 else 0.0)
+    elif generated_count and not (core_count or ui_count):
+        score = 1.2
+    elif other_count:
+        score = 4.5
+    else:
+        score = 2.0
+
+    if generated_count:
+        score -= min(2.5, generated_count * 0.8)
+    if is_merge and (core_count or ui_count or doc_count):
+        score = max(score, 5.8)
+
+    return _clamp(score, 0, 10)
 
 
 def danh_gia_tac_dong_code(file_stats):
     reasons = []
     source_count = len(file_stats["source_files"])
+    core_count = len(file_stats["core_files"])
+    ui_count = len(file_stats["ui_config_files"])
     doc_count = len(file_stats["document_files"])
     generated_count = len(file_stats["generated_files"])
     other_count = len(file_stats["other_files"])
 
-    if source_count:
-        score = 70.0 + min(25.0, source_count * 6)
+    if core_count:
+        score = 75.0 + min(18.0, core_count * 4.5)
+    elif ui_count:
+        score = 65.0 + min(15.0, ui_count * 4)
     elif doc_count and not generated_count:
-        score = 38.0
+        score = 48.0
         reasons.append("commit thiên về tài liệu/báo cáo")
     elif generated_count and not source_count:
         score = 12.0
@@ -396,26 +550,45 @@ def danh_gia_tac_dong_code(file_stats):
 def danh_gia_chat_luong_commit(commit):
     """Tra ve diem chat luong va ly do commit dang nghi neu co."""
     file_stats = _thong_ke_file_commit(commit)
-    message_score, message_reasons = danh_gia_commit_message(commit.get("message", ""))
-    meaningful_score, meaningful_reasons = danh_gia_y_nghia_thay_doi(commit, file_stats)
-    code_impact_score, code_reasons = danh_gia_tac_dong_code(file_stats)
+    message_score_10, message_reasons = score_commit_message(commit.get("message", ""))
+    meaningful_score_10, code_impact_score_10, meaningful_reasons = score_meaningful_change(
+        commit, file_stats
+    )
+    message_score = message_score_10 * 10
+    meaningful_score = meaningful_score_10 * 10
+    code_impact_score = code_impact_score_10 * 10
 
     suspicious_reasons = []
     suspicious_reasons.extend(message_reasons)
     suspicious_reasons.extend(meaningful_reasons)
-    suspicious_reasons.extend(code_reasons)
 
     penalty = 0.0
-    if message_score < 50:
+    penalty_reasons = []
+    if message_score_10 < 4.5:
         penalty += 8
-    if meaningful_score < 45:
+        penalty_reasons.append("commit message kém chất lượng")
+    if meaningful_score_10 < 4.0:
         penalty += 6
-    if code_impact_score < 35:
+        penalty_reasons.append("thay đổi quá nhỏ hoặc chưa rõ ý nghĩa")
+    if code_impact_score_10 < 3.5:
         penalty += 8
+        penalty_reasons.append("tác động vào file chính thấp")
     if file_stats["generated_files"]:
         penalty += 8
+        penalty_reasons.append("có sửa file local/generated")
     if file_stats["document_files"] and not file_stats["source_files"]:
-        penalty += 4
+        if commit.get("additions", 0) + commit.get("deletions", 0) < 40:
+            penalty += 4
+            penalty_reasons.append("commit chủ yếu sửa tài liệu/báo cáo nhỏ")
+    if _is_merge_or_integration_message(commit.get("message", "")) and not file_stats["generated_files"]:
+        penalty = max(0.0, penalty - 4)
+        penalty_reasons = [
+            reason
+            for reason in penalty_reasons
+            if reason not in {"thay đổi quá nhỏ hoặc chưa rõ ý nghĩa", "tác động vào file chính thấp"}
+        ]
+    if _is_initial_commit(commit.get("message", "")) and file_stats["source_files"]:
+        penalty = max(0.0, penalty - 5)
 
     quality_score = (
         0.40 * message_score
@@ -432,23 +605,34 @@ def danh_gia_chat_luong_commit(commit):
         "short_sha": _short_sha(commit.get("sha", "")),
         "message": _first_line(commit.get("message", "")),
         "commit_message_score": message_score,
+        "commit_message_score_display": round(message_score_10, 1),
+        "message_reason": "; ".join(message_reasons),
         "meaningful_change_score": meaningful_score,
+        "meaningful_change_score_display": round(meaningful_score_10, 1),
         "code_impact_score": code_impact_score,
+        "code_impact_score_display": round(code_impact_score_10, 1),
         "quality_score": quality_score,
         "penalty_score": penalty,
         "quality_score_display": quy_doi_diem_hien_thi(quality_score),
         "penalty_score_display": quy_doi_diem_tru_hien_thi(penalty, max_internal=25),
         "is_suspicious": is_suspicious,
         "suspicious_reasons": unique_reasons,
+        "penalty_reasons": list(dict.fromkeys(penalty_reasons)),
         "suspicion_level": _xac_dinh_muc_do_nghi_ngo(penalty, unique_reasons),
         "suspicion_score_display": quy_doi_diem_tru_hien_thi(penalty, max_internal=25),
+        "core_file_count": len(file_stats["core_files"]),
+        "ui_config_file_count": len(file_stats["ui_config_files"]),
         "source_file_count": len(file_stats["source_files"]),
         "document_file_count": len(file_stats["document_files"]),
         "generated_file_count": len(file_stats["generated_files"]),
+        "core_changes": file_stats["core_changes"],
+        "ui_config_changes": file_stats["ui_config_changes"],
         "source_changes": file_stats["source_changes"],
         "document_changes": file_stats["document_changes"],
         "generated_changes": file_stats["generated_changes"],
         "other_changes": file_stats["other_changes"],
+        "file_impact_raw": file_stats["file_impact_raw"],
+        "is_integration_commit": _is_merge_or_integration_message(commit.get("message", "")),
     }
 
 
@@ -486,10 +670,10 @@ def loc_commit_duoc_tinh_diem(danh_sach_commit):
         ignored_reasons = []
         if is_bot:
             ignored_bot_commit_count += 1
-            ignored_reasons.append("bot")
+            ignored_reasons.append("bot commit")
         if is_auto_commit:
             ignored_auto_commit_count += 1
-            ignored_reasons.append("auto_commit")
+            ignored_reasons.append("auto report commit")
 
         commit_moi["is_bot"] = is_bot
         commit_moi["is_auto_commit"] = is_auto_commit
@@ -504,6 +688,7 @@ def loc_commit_duoc_tinh_diem(danh_sach_commit):
                     "contributor": commit_moi.get("ten_hien_thi", ""),
                     "message": _first_line(commit_moi.get("message", "")),
                     "reasons": ignored_reasons,
+                    "reason": " / ".join(ignored_reasons),
                 }
             )
             continue
@@ -546,6 +731,74 @@ def gom_commit_theo_contributor(danh_sach_commit):
     return ket_qua
 
 
+def _parse_commit_datetime(value):
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+
+def _tinh_thoi_gian_code_uoc_tinh(danh_sach_commit):
+    datetimes = [
+        parsed
+        for parsed in (_parse_commit_datetime(commit.get("commit_date")) for commit in danh_sach_commit)
+        if parsed is not None
+    ]
+    datetimes.sort()
+    active_days = len({item.date().isoformat() for item in datetimes})
+
+    if not datetimes:
+        return {
+            "estimated_coding_minutes": 0,
+            "estimated_coding_hours": 0.0,
+            "active_days": 0,
+            "coding_sessions": 0,
+        }
+
+    sessions = []
+    current_minutes = 30.0
+    previous = datetimes[0]
+
+    for current in datetimes[1:]:
+        gap_minutes = max((current - previous).total_seconds() / 60.0, 0.0)
+        if gap_minutes <= 120:
+            current_minutes = min(360.0, current_minutes + min(gap_minutes, 120.0))
+        else:
+            sessions.append(current_minutes)
+            current_minutes = 30.0
+        previous = current
+
+    sessions.append(current_minutes)
+    total_minutes = round(sum(sessions), 1)
+
+    return {
+        "estimated_coding_minutes": total_minutes,
+        "estimated_coding_hours": round(total_minutes / 60.0, 2),
+        "active_days": active_days,
+        "coding_sessions": len(sessions),
+    }
+
+
+def _tinh_integration_points(commit, quality_item):
+    message = commit.get("message", "")
+    if not _is_merge_or_integration_message(message):
+        return 0.0
+    if quality_item.get("generated_file_count", 0) and quality_item.get("source_file_count", 0) == 0:
+        return 0.0
+
+    points = 28.0
+    normalized = _normalize_text(message)
+    if "merge pull request" in normalized or "resolve conflict" in normalized:
+        points += 20.0
+    if quality_item.get("source_file_count", 0):
+        points += 18.0
+    if quality_item.get("document_file_count", 0):
+        points += 8.0
+    return _clamp(points, 0, 55)
+
+
 def tinh_chi_so_contributor(du_lieu_gom):
     """Tinh metrics va metrics chat luong cho tung contributor."""
     ket_qua = []
@@ -557,12 +810,20 @@ def tinh_chi_so_contributor(du_lieu_gom):
         tap_hop_file = set()
         quality_items = []
         suspicious_commits = []
+        penalty_reasons = []
+        integration_commit_count = 0
+        integration_raw = 0.0
+        core_files = set()
+        ui_config_files = set()
         source_files = set()
         document_files = set()
         generated_files = set()
+        core_changes = 0
+        ui_config_changes = 0
         source_changes = 0
         document_changes = 0
         generated_changes = 0
+        file_impact_raw = 0.0
 
         for commit in danh_sach_commit:
             tong_additions += commit.get("additions", 0)
@@ -570,8 +831,12 @@ def tinh_chi_so_contributor(du_lieu_gom):
 
             for ten_file in commit.get("changed_files", []):
                 tap_hop_file.add(ten_file)
-                file_type = phan_loai_file(ten_file)
-                if file_type == "source":
+                file_type = classify_file(ten_file)
+                if file_type == "core":
+                    core_files.add(ten_file)
+                    source_files.add(ten_file)
+                elif file_type == "ui_config":
+                    ui_config_files.add(ten_file)
                     source_files.add(ten_file)
                 elif file_type == "document":
                     document_files.add(ten_file)
@@ -580,9 +845,18 @@ def tinh_chi_so_contributor(du_lieu_gom):
 
             quality_item = danh_gia_chat_luong_commit(commit)
             quality_items.append(quality_item)
+            core_changes += quality_item.get("core_changes", 0)
+            ui_config_changes += quality_item.get("ui_config_changes", 0)
             source_changes += quality_item.get("source_changes", 0)
             document_changes += quality_item.get("document_changes", 0)
             generated_changes += quality_item.get("generated_changes", 0)
+            file_impact_raw += quality_item.get("file_impact_raw", 0)
+            penalty_reasons.extend(quality_item.get("penalty_reasons", []))
+
+            integration_points = _tinh_integration_points(commit, quality_item)
+            if integration_points > 0:
+                integration_commit_count += 1
+                integration_raw += integration_points
 
             if quality_item.get("is_suspicious"):
                 suspicious_commits.append(
@@ -603,6 +877,7 @@ def tinh_chi_so_contributor(du_lieu_gom):
         total_changes = tong_additions + tong_deletions
         suspicious_commit_count = len(suspicious_commits)
         suspicious_commit_ratio = suspicious_commit_count / commit_count if commit_count else 0
+        time_stats = _tinh_thoi_gian_code_uoc_tinh(danh_sach_commit)
 
         def avg(key):
             if not quality_items:
@@ -611,7 +886,8 @@ def tinh_chi_so_contributor(du_lieu_gom):
 
         quality_score = avg("quality_score")
         penalty_score = _clamp(avg("penalty_score") + suspicious_commit_ratio * 12, 0, 30)
-        file_impact_raw = source_changes + 0.35 * document_changes + 0.15 * generated_changes
+        if suspicious_commit_ratio >= 0.4:
+            penalty_reasons.append("tỷ lệ commit cần xem lại cao")
 
         ket_qua.append(
             {
@@ -627,9 +903,13 @@ def tinh_chi_so_contributor(du_lieu_gom):
                 "changed_files_count": len(tap_hop_file),
                 "files_changed": len(tap_hop_file),
                 "total_changes": total_changes,
+                "core_file_count": len(core_files),
+                "ui_config_file_count": len(ui_config_files),
                 "source_file_count": len(source_files),
                 "document_file_count": len(document_files),
                 "generated_file_count": len(generated_files),
+                "core_changes": core_changes,
+                "ui_config_changes": ui_config_changes,
                 "source_changes": source_changes,
                 "document_changes": document_changes,
                 "generated_changes": generated_changes,
@@ -638,6 +918,12 @@ def tinh_chi_so_contributor(du_lieu_gom):
                 "suspicious_commits": suspicious_commits,
                 "suspicious_commit_count": suspicious_commit_count,
                 "suspicious_commit_ratio": suspicious_commit_ratio,
+                "estimated_coding_minutes": time_stats["estimated_coding_minutes"],
+                "estimated_coding_hours": time_stats["estimated_coding_hours"],
+                "active_days": time_stats["active_days"],
+                "coding_sessions": time_stats["coding_sessions"],
+                "integration_commit_count": integration_commit_count,
+                "integration_raw": integration_raw,
                 "commit_message_score": avg("commit_message_score"),
                 "meaningful_change_score": avg("meaningful_change_score"),
                 "code_impact_score": avg("code_impact_score"),
@@ -645,6 +931,7 @@ def tinh_chi_so_contributor(du_lieu_gom):
                 "quality_score_display": quy_doi_diem_hien_thi(quality_score),
                 "penalty_score": penalty_score,
                 "penalty_score_display": quy_doi_diem_tru_hien_thi(penalty_score),
+                "penalty_reasons": list(dict.fromkeys(penalty_reasons)),
             }
         )
 
@@ -671,49 +958,46 @@ def _normalize_log_max(values, cap=None):
 
 
 def _tinh_consistency_score(item):
-    commits = item.get("commit_quality_items", [])
     commit_count = item.get("commit_count", 0)
-    total_changes = item.get("total_changes", 0)
+    active_days = item.get("active_days", 0)
+    coding_sessions = item.get("coding_sessions", 0)
 
-    if commit_count <= 0 or total_changes <= 0:
+    if commit_count <= 0:
         return 0.0
 
+    active_day_score = min(45.0, active_days * 15.0)
+    session_score = min(35.0, coding_sessions * 10.0)
+    spread_ratio = active_days / commit_count if commit_count else 0.0
+    spread_score = min(20.0, spread_ratio * 60.0)
     if commit_count == 1:
-        return 42.0 if item.get("quality_score", 0) >= 70 else 30.0
+        spread_score = min(spread_score, 10.0)
 
-    changes_per_commit = []
-    for commit_quality in commits:
-        source = commit_quality.get("source_changes", 0)
-        document = commit_quality.get("document_changes", 0)
-        generated = commit_quality.get("generated_changes", 0)
-        changes_per_commit.append(source + document + generated)
-
-    max_commit_changes = max(changes_per_commit) if changes_per_commit else total_changes
-    dominance_ratio = max_commit_changes / total_changes if total_changes else 1
-    spread_score = (1 - dominance_ratio) * 100
-    count_bonus = min(25, commit_count * 5)
-    quality_bonus = min(15, item.get("quality_score", 0) * 0.15)
-
-    return _clamp(spread_score + count_bonus + quality_bonus)
+    return _clamp(active_day_score + session_score + spread_score)
 
 
 def tinh_diem_dong_gop_co_ban(danh_sach_thong_ke):
     """
-    Tinh diem dong gop theo cong thuc moi:
-    final_score = 0.20 commit_score + 0.20 code_volume_score
-                + 0.20 file_impact_score + 0.25 quality_score
-                + 0.15 consistency_score - penalty_score
+    Tinh diem dong gop theo cong thuc rule-based moi:
+    raw_score = 0.10 commit_score + 0.15 code_volume_score
+              + 0.15 file_impact_score + 0.25 quality_score
+              + 0.15 consistency_score + 0.10 estimated_time_score
+              + 0.10 integration_score
+    final_score = raw_score - penalty_score
     """
     commit_scores = _normalize_log_max(
         [item.get("commit_count", 0) for item in danh_sach_thong_ke]
     )
     code_volume_scores = _normalize_log_max(
         [item.get("total_changes", 0) for item in danh_sach_thong_ke],
-        cap=2500,
+        cap=4000,
     )
     file_impact_scores = _normalize_log_max(
         [item.get("file_impact_raw", 0) for item in danh_sach_thong_ke],
-        cap=2500,
+        cap=4000,
+    )
+    estimated_time_scores = _normalize_log_max(
+        [item.get("estimated_coding_minutes", 0) for item in danh_sach_thong_ke],
+        cap=2400,
     )
 
     ket_qua = []
@@ -723,14 +1007,21 @@ def tinh_diem_dong_gop_co_ban(danh_sach_thong_ke):
         file_impact_score = file_impact_scores[index]
         quality_score = item.get("quality_score", 0)
         consistency_score = _tinh_consistency_score(item)
+        estimated_time_score = estimated_time_scores[index]
+        integration_score = _clamp(item.get("integration_raw", 0), 0, 100)
         penalty_score = item.get("penalty_score", 0)
 
-        final_score = (
-            0.20 * commit_score
-            + 0.20 * code_volume_score
-            + 0.20 * file_impact_score
+        raw_score = (
+            0.10 * commit_score
+            + 0.15 * code_volume_score
+            + 0.15 * file_impact_score
             + 0.25 * quality_score
             + 0.15 * consistency_score
+            + 0.10 * estimated_time_score
+            + 0.10 * integration_score
+        )
+        final_score = (
+            raw_score
             - penalty_score
         )
         final_score = _clamp(final_score)
@@ -744,10 +1035,16 @@ def tinh_diem_dong_gop_co_ban(danh_sach_thong_ke):
                 "file_impact_score": file_impact_score,
                 "file_score": file_impact_score,
                 "consistency_score": consistency_score,
+                "estimated_time_score": estimated_time_score,
+                "integration_score": integration_score,
+                "raw_score": raw_score,
                 "final_score": final_score,
                 "score": final_score,
                 "baseline_score": final_score,
                 "quality_score_display": quy_doi_diem_hien_thi(quality_score),
+                "estimated_time_score_display": quy_doi_diem_hien_thi(estimated_time_score),
+                "consistency_score_display": quy_doi_diem_hien_thi(consistency_score),
+                "integration_score_display": quy_doi_diem_hien_thi(integration_score),
                 "penalty_score_display": quy_doi_diem_tru_hien_thi(penalty_score),
                 "final_score_display": quy_doi_diem_hien_thi(final_score),
                 "score_display": quy_doi_diem_hien_thi(final_score),
@@ -787,6 +1084,7 @@ def tao_overview(
     suspicious_commit_count = sum(
         item.get("suspicious_commit_count", 0) for item in contributors
     )
+    total_estimated_minutes = sum(item.get("estimated_coding_minutes", 0) for item in contributors)
 
     return {
         "owner": owner,
@@ -800,6 +1098,10 @@ def tao_overview(
         "contributor_count": len(contributors),
         "total_additions": sum(item.get("total_additions", 0) for item in contributors),
         "total_deletions": sum(item.get("total_deletions", 0) for item in contributors),
+        "total_estimated_coding_minutes": round(total_estimated_minutes, 1),
+        "total_estimated_coding_hours": round(total_estimated_minutes / 60.0, 2),
+        "total_coding_sessions": sum(item.get("coding_sessions", 0) for item in contributors),
+        "total_active_days": sum(item.get("active_days", 0) for item in contributors),
         "top_contributor": top_contributor.get("contributor", "Chưa có"),
         "top_score": top_contributor.get("final_score", 0),
         "top_score_display": quy_doi_diem_hien_thi(top_contributor.get("final_score", 0)),
