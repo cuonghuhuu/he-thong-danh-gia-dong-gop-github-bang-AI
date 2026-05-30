@@ -3,15 +3,15 @@
 ## Tổng quan
 
 - Repository: cuonghuhuu/he-thong-danh-gia-dong-gop-github-bang-AI
-- Thời gian phân tích: 2026-05-30 02:24:24
-- Số commit đã phân tích: 19
-- Tổng contributor: 2
-- Tổng additions: 7354
-- Tổng deletions: 2109
-- Điểm chất lượng trung bình: 80.03
-- Số commit cần xem lại: 9
-- Số commit bot đã loại: 5
-- Số commit tự động đã loại: 5
+- Thời gian phân tích: 2026-05-30 09:50:36
+- Số commit đã phân tích: 23
+- Tổng contributor: 3
+- Tổng additions: 7674
+- Tổng deletions: 2257
+- Điểm chất lượng trung bình: 79.12
+- Số commit cần xem lại: 10
+- Số commit bot đã loại: 6
+- Số commit tự động đã loại: 6
 - Contributor điểm cao nhất: cuonghuhuu
 
 ## Công thức điểm
@@ -29,8 +29,9 @@ final_score = 0.20 * commit_score
 
 | STT | Contributor | Commit | Additions | Deletions | Files | Quality score | Penalty | Suspicious commits | Suspicious ratio | Final score | Mức đánh giá | Nhận xét |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | cuonghuhuu | 18 | 7263 | 2074 | 22 | 71.16 | 10.67 | 9 | 50.0% | 82.12 | Đóng góp tốt | Quality 71.2, có 9 commit cần xem lại. |
-| 2 | ngoclinh205 | 1 | 91 | 35 | 3 | 88.90 | 0.00 | 0 | 0.0% | 58.00 | Đóng góp trung bình | Quality 88.9, đóng góp tốt vào code chính. |
+| 1 | cuonghuhuu | 19 | 7423 | 2148 | 22 | 71.85 | 10.11 | 9 | 47.4% | 82.86 | Đóng góp tốt | Quality 71.9, có 9 commit cần xem lại. |
+| 2 | dinhphuongbinh | 3 | 160 | 74 | 4 | 76.60 | 6.00 | 1 | 33.3% | 58.16 | Đóng góp trung bình | Quality 76.6, có 1 commit cần xem lại. |
+| 3 | ngoclinh205 | 1 | 91 | 35 | 3 | 88.90 | 0.00 | 0 | 0.0% | 57.92 | Đóng góp trung bình | Quality 88.9, đóng góp tốt vào code chính. |
 
 ## Commit cần xem lại
 
@@ -46,8 +47,13 @@ final_score = 0.20 * commit_score
 - `d7b445d` - Update README.md: commit message quá ngắn; commit chủ yếu sửa tài liệu/báo cáo; commit thiên về tài liệu/báo cáo
 - `7252f66` - Initial commit: commit message quá ngắn; commit chủ yếu sửa tài liệu/báo cáo; commit thiên về tài liệu/báo cáo
 
+### dinhphuongbinh
+
+- `ef5f5ab` - Normalize contributors and ignore bot commits: thay đổi quá nhỏ
+
 ## Commit bot/tự động đã loại
 
+- `41a6ed6` - actions-user: Auto update report (bot, auto_commit)
 - `807c38b` - actions-user: Auto update report (bot, auto_commit)
 - `57ed69c` - actions-user: Auto update report (bot, auto_commit)
 - `cc12cf6` - actions-user: Auto update report (bot, auto_commit)
@@ -57,10 +63,10 @@ final_score = 0.20 * commit_score
 ## Nhận xét AI rule-based
 
 Nhận xét tổng quan:
-Repository cuonghuhuu/he-thong-danh-gia-dong-gop-github-bang-AI có 2 contributor trong 19 commit đã phân tích. Điểm chất lượng trung bình là 80.03, số commit cần xem lại là 9. Hệ thống đã loại bỏ commit tự động/bot để kết quả đánh giá công bằng hơn.
+Repository cuonghuhuu/he-thong-danh-gia-dong-gop-github-bang-AI có 3 contributor trong 23 commit đã phân tích. Điểm chất lượng trung bình là 79.12, số commit cần xem lại là 10. Hệ thống đã chuẩn hóa contributor theo GitHub login, alias, author name/email để tránh tách sai cùng một người. Hệ thống đã loại bỏ commit bot/tự động để kết quả đánh giá công bằng hơn.
 
 Contributor nổi bật:
-Contributor có điểm cao nhất là cuonghuhuu với final score 82.12, quality score 71.16, penalty 10.67.
+Contributor có điểm cao nhất là cuonghuhuu với final score 82.86, quality score 71.85, penalty 10.11.
 
 Gợi ý cải thiện:
 Nên rà soát các commit bị đánh dấu, đặc biệt commit message quá ngắn, commit chỉ sửa báo cáo hoặc commit có file môi trường/local.
