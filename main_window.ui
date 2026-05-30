@@ -157,180 +157,256 @@
      </widget>
     </item>
     <item>
-     <widget class="QGroupBox" name="overviewGroupBox">
-      <property name="title">
-       <string>Tổng quan đánh giá</string>
+     <widget class="QTabWidget" name="dashboardTabWidget">
+      <property name="currentIndex">
+       <number>0</number>
       </property>
-      <layout class="QGridLayout" name="overviewLayout">
-       <item row="0" column="0">
-        <widget class="QLabel" name="repoTitleLabel">
-         <property name="text">
-          <string>Kho GitHub</string>
-         </property>
-        </widget>
-       </item>
-       <item row="0" column="1" colspan="5">
-        <widget class="QLabel" name="repoNameLabel">
-         <property name="styleSheet">
-          <string notr="true">font-weight: 600;</string>
-         </property>
-         <property name="text">
-          <string>Chưa phân tích</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="0">
-        <widget class="QLabel" name="totalCommitsTitleLabel">
-         <property name="text">
-          <string>Tổng số commit</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="1">
-        <widget class="QLabel" name="totalCommitsLabel">
-         <property name="styleSheet">
-          <string notr="true">font-weight: 600;</string>
-         </property>
-         <property name="text">
-          <string>0</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="2">
-        <widget class="QLabel" name="totalContributorsTitleLabel">
-         <property name="text">
-          <string>Tổng thành viên</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="3">
-        <widget class="QLabel" name="totalContributorsLabel">
-         <property name="styleSheet">
-          <string notr="true">font-weight: 600;</string>
-         </property>
-         <property name="text">
-          <string>0</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="4">
-        <widget class="QLabel" name="averageQualityTitleLabel">
-         <property name="text">
-          <string>Điểm chất lượng TB</string>
-         </property>
-        </widget>
-       </item>
-       <item row="1" column="5">
-        <widget class="QLabel" name="averageQualityLabel">
-         <property name="styleSheet">
-          <string notr="true">font-weight: 600;</string>
-         </property>
-         <property name="text">
-          <string>0.00</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="0">
-        <widget class="QLabel" name="totalAdditionsTitleLabel">
-         <property name="text">
-          <string>Tổng dòng thêm</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="1">
-        <widget class="QLabel" name="totalAdditionsLabel">
-         <property name="styleSheet">
-          <string notr="true">font-weight: 600;</string>
-         </property>
-         <property name="text">
-          <string>0</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="2">
-        <widget class="QLabel" name="totalDeletionsTitleLabel">
-         <property name="text">
-          <string>Tổng dòng xoá</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="3">
-        <widget class="QLabel" name="totalDeletionsLabel">
-         <property name="styleSheet">
-          <string notr="true">font-weight: 600;</string>
-         </property>
-         <property name="text">
-          <string>0</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="4">
-        <widget class="QLabel" name="suspiciousCommitTitleLabel">
-         <property name="text">
-          <string>Commit cần xem lại</string>
-         </property>
-        </widget>
-       </item>
-       <item row="2" column="5">
-        <widget class="QLabel" name="suspiciousCommitLabel">
-         <property name="styleSheet">
-          <string notr="true">font-weight: 600;</string>
-         </property>
-         <property name="text">
-          <string>0</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="0">
-        <widget class="QLabel" name="totalCodingHoursTitleLabel">
-         <property name="text">
-          <string>Tổng giờ code ước tính</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="1">
-        <widget class="QLabel" name="totalCodingHoursLabel">
-         <property name="styleSheet">
-          <string notr="true">font-weight: 600;</string>
-         </property>
-         <property name="text">
-          <string>0.0h</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="2">
-        <widget class="QLabel" name="totalCodingSessionsTitleLabel">
-         <property name="text">
-          <string>Số phiên làm việc</string>
-         </property>
-        </widget>
-       </item>
-       <item row="3" column="3">
-        <widget class="QLabel" name="totalCodingSessionsLabel">
-         <property name="styleSheet">
-          <string notr="true">font-weight: 600;</string>
-         </property>
-         <property name="text">
-          <string>0</string>
-         </property>
-        </widget>
-       </item>
-      </layout>
-     </widget>
-    </item>
-    <item>
-     <widget class="QSplitter" name="contentSplitter">
-      <property name="orientation">
-       <enum>Qt::Horizontal</enum>
-      </property>
-      <widget class="QGroupBox" name="contributorGroupBox">
-       <property name="title">
-        <string>Bảng thành viên đóng góp</string>
-       </property>
-       <layout class="QVBoxLayout" name="contributorLayout">
+      <widget class="QWidget" name="dashboardTab">
+       <attribute name="title">
+        <string>Dashboard tổng quan</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="dashboardTabLayout">
         <item>
-         <widget class="QTableWidget" name="contributorTable"/>
+         <widget class="QScrollArea" name="dashboardScrollArea">
+          <property name="widgetResizable">
+           <bool>true</bool>
+          </property>
+          <widget class="QWidget" name="dashboardScrollContent">
+           <property name="geometry">
+            <rect>
+             <x>0</x>
+             <y>0</y>
+             <width>1232</width>
+             <height>800</height>
+            </rect>
+           </property>
+           <layout class="QVBoxLayout" name="dashboardScrollLayout">
+            <item>
+             <widget class="QGroupBox" name="overviewGroupBox">
+              <property name="title">
+               <string>Tổng quan đánh giá</string>
+              </property>
+              <layout class="QGridLayout" name="overviewLayout">
+               <item row="0" column="0">
+                <widget class="QLabel" name="repoTitleLabel">
+                 <property name="text">
+                  <string>Kho GitHub</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="0" column="1" colspan="5">
+                <widget class="QLabel" name="repoNameLabel">
+                 <property name="styleSheet">
+                  <string notr="true">font-weight: 600;</string>
+                 </property>
+                 <property name="text">
+                  <string>Chưa phân tích</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="0">
+                <widget class="QLabel" name="totalCommitsTitleLabel">
+                 <property name="text">
+                  <string>Tổng số commit</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="1">
+                <widget class="QLabel" name="totalCommitsLabel">
+                 <property name="styleSheet">
+                  <string notr="true">font-weight: 600;</string>
+                 </property>
+                 <property name="text">
+                  <string>0</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="2">
+                <widget class="QLabel" name="totalContributorsTitleLabel">
+                 <property name="text">
+                  <string>Tổng thành viên</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="3">
+                <widget class="QLabel" name="totalContributorsLabel">
+                 <property name="styleSheet">
+                  <string notr="true">font-weight: 600;</string>
+                 </property>
+                 <property name="text">
+                  <string>0</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="4">
+                <widget class="QLabel" name="averageQualityTitleLabel">
+                 <property name="text">
+                  <string>Điểm chất lượng TB</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="1" column="5">
+                <widget class="QLabel" name="averageQualityLabel">
+                 <property name="styleSheet">
+                  <string notr="true">font-weight: 600;</string>
+                 </property>
+                 <property name="text">
+                  <string>0.0/10</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="0">
+                <widget class="QLabel" name="totalAdditionsTitleLabel">
+                 <property name="text">
+                  <string>Tổng dòng thêm</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="1">
+                <widget class="QLabel" name="totalAdditionsLabel">
+                 <property name="styleSheet">
+                  <string notr="true">font-weight: 600;</string>
+                 </property>
+                 <property name="text">
+                  <string>0</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="2">
+                <widget class="QLabel" name="totalDeletionsTitleLabel">
+                 <property name="text">
+                  <string>Tổng dòng xoá</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="3">
+                <widget class="QLabel" name="totalDeletionsLabel">
+                 <property name="styleSheet">
+                  <string notr="true">font-weight: 600;</string>
+                 </property>
+                 <property name="text">
+                  <string>0</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="4">
+                <widget class="QLabel" name="suspiciousCommitTitleLabel">
+                 <property name="text">
+                  <string>Commit cần xem lại</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="5">
+                <widget class="QLabel" name="suspiciousCommitLabel">
+                 <property name="styleSheet">
+                  <string notr="true">font-weight: 600;</string>
+                 </property>
+                 <property name="text">
+                  <string>0</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="0">
+                <widget class="QLabel" name="totalCodingHoursTitleLabel">
+                 <property name="text">
+                  <string>Tổng giờ code ước tính</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="1">
+                <widget class="QLabel" name="totalCodingHoursLabel">
+                 <property name="styleSheet">
+                  <string notr="true">font-weight: 600;</string>
+                 </property>
+                 <property name="text">
+                  <string>0.0h</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="2">
+                <widget class="QLabel" name="totalCodingSessionsTitleLabel">
+                 <property name="text">
+                  <string>Số phiên làm việc</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="3" column="3">
+                <widget class="QLabel" name="totalCodingSessionsLabel">
+                 <property name="styleSheet">
+                  <string notr="true">font-weight: 600;</string>
+                 </property>
+                 <property name="text">
+                  <string>0</string>
+                 </property>
+                </widget>
+               </item>
+              </layout>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="chartGroupBox">
+              <property name="minimumHeight">
+               <number>680</number>
+              </property>
+              <property name="title">
+               <string>Biểu đồ đánh giá</string>
+              </property>
+              <layout class="QVBoxLayout" name="chartContainerLayout"/>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </widget>
         </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="memberDetailTab">
+       <attribute name="title">
+        <string>Chi tiết thành viên</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="memberDetailTabLayout">
+        <item>
+         <widget class="QGroupBox" name="contributorGroupBox">
+          <property name="title">
+           <string>Bảng thành viên đóng góp</string>
+          </property>
+          <layout class="QVBoxLayout" name="contributorLayout">
+           <item>
+            <widget class="QTableWidget" name="contributorTable">
+             <property name="minimumHeight">
+              <number>360</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
+         <widget class="QGroupBox" name="aiGroupBox">
+          <property name="title">
+           <string>Nhận xét AI</string>
+          </property>
+          <layout class="QVBoxLayout" name="aiLayout">
+           <item>
+            <widget class="QTextEdit" name="aiTextEdit">
+             <property name="minimumHeight">
+              <number>180</number>
+             </property>
+             <property name="placeholderText">
+              <string>Nhận xét tổng quan và nhận xét contributor nổi bật sẽ hiển thị sau khi phân tích.</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+      <widget class="QWidget" name="commitReviewTab">
+       <attribute name="title">
+        <string>Commit cần xem lại</string>
+       </attribute>
+       <layout class="QVBoxLayout" name="commitReviewTabLayout">
         <item>
          <widget class="QGroupBox" name="suspiciousCommitGroupBox">
           <property name="title">
@@ -340,7 +416,7 @@
            <item>
             <widget class="QTableWidget" name="suspiciousCommitTable">
              <property name="minimumHeight">
-              <number>165</number>
+              <number>420</number>
              </property>
             </widget>
            </item>
@@ -348,54 +424,23 @@
          </widget>
         </item>
         <item>
-         <widget class="QLabel" name="explanationLabel">
-          <property name="styleSheet">
-           <string notr="true">color: #444; line-height: 1.3;</string>
-          </property>
-          <property name="text">
-           <string>Giải thích:
-- Số commit: số lần thành viên đẩy thay đổi lên GitHub.
-- Dòng thêm/xoá: số dòng code được thêm hoặc xoá.
-- Điểm chất lượng: đánh giá chất lượng commit/code, gồm commit message, file code chính, commit cần xem lại và mức độ thay đổi có ý nghĩa.
-- Giờ code ước tính: suy ra từ khoảng cách giữa các commit, mỗi phiên tối đa 6 giờ nên chỉ là tham khảo.
-- Điểm cuối: điểm tổng hợp sau khi xét số commit, dòng code, file thay đổi, điểm chất lượng, độ đều đóng góp và điểm trừ.
-- Vì vậy điểm cuối có thể cao hơn điểm chất lượng nếu thành viên có nhiều đóng góp về số lượng, nhưng vẫn còn một số commit cần xem lại.
-- Điểm trừ hiển thị theo thang 0-10, chuẩn hoá từ penalty nội bộ tối đa 30 điểm.
-- Commit cần xem lại: commit có dấu hiệu chưa rõ ràng như message quá ngắn, quá chung chung, chỉ sửa tài liệu/báo cáo hoặc file môi trường/local.</string>
-          </property>
-          <property name="wordWrap">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </widget>
-      <widget class="QWidget" name="rightPanel">
-       <layout class="QVBoxLayout" name="rightPanelLayout">
-        <item>
-         <widget class="QGroupBox" name="chartGroupBox">
-          <property name="minimumHeight">
-           <number>560</number>
-          </property>
+         <widget class="QGroupBox" name="commitReviewExplanationGroupBox">
           <property name="title">
-           <string>Biểu đồ đánh giá</string>
+           <string>Giải thích</string>
           </property>
-          <layout class="QVBoxLayout" name="chartContainerLayout"/>
-         </widget>
-        </item>
-        <item>
-         <widget class="QGroupBox" name="aiGroupBox">
-          <property name="title">
-           <string>Nhận xét tự động</string>
-          </property>
-          <layout class="QVBoxLayout" name="aiLayout">
+          <layout class="QVBoxLayout" name="commitReviewExplanationLayout">
            <item>
-            <widget class="QTextEdit" name="aiTextEdit">
-             <property name="minimumHeight">
-              <number>130</number>
+            <widget class="QLabel" name="explanationLabel">
+             <property name="styleSheet">
+              <string notr="true">color: #444; line-height: 1.35;</string>
              </property>
-             <property name="placeholderText">
-              <string>Nhận xét sẽ hiển thị sau khi phân tích.</string>
+             <property name="text">
+              <string>Commit cần xem lại là commit có dấu hiệu chưa rõ ràng như message quá ngắn, sửa file tự động, sửa báo cáo/tài liệu quá nhiều hoặc thay đổi quá nhỏ.
+
+Đây là gợi ý để người dùng kiểm tra lại, không phải kết luận tuyệt đối.</string>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
              </property>
             </widget>
            </item>

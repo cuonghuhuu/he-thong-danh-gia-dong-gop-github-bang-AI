@@ -135,6 +135,7 @@ class MainWindow(QMainWindow):
         self.reports_dir.mkdir(parents=True, exist_ok=True)
 
         self.chart_widget = ChartWidget(self)
+        self.chart_widget.setMinimumHeight(620)
         self.chartContainerLayout.addWidget(self.chart_widget)
 
         self._setup_widgets()
@@ -270,7 +271,7 @@ class MainWindow(QMainWindow):
         self.hien_thi_bang_contributor(contributors)
         self.hien_thi_commit_can_xem_lai(contributors)
         self.chart_widget.update_charts(contributors)
-        self.aiTextEdit.setPlainText(ket_qua.get("ai_summary", ""))
+        self.aiTextEdit.setPlainText(self._tao_noi_dung_nhan_xet_ai(ket_qua, contributors))
         self._set_result_buttons_enabled(True)
         ignored_count = ket_qua.get("overview", {}).get("ignored_commit_count", 0)
         if ignored_count:
@@ -327,7 +328,6 @@ class MainWindow(QMainWindow):
             "Giờ code ước tính",
             "Số ngày hoạt động",
             "Điểm chất lượng /10",
-            "Điểm thời gian /10",
             "Điểm cuối /10",
             "Điểm trừ",
             "Mức đánh giá",
@@ -348,7 +348,6 @@ class MainWindow(QMainWindow):
                 f"{item.get('estimated_coding_hours', 0):.1f}",
                 item.get("active_days", 0),
                 f"{_lay_diem_hien_thi(item, 'quality_score_display', 'quality_score'):.1f}",
-                f"{_lay_diem_hien_thi(item, 'estimated_time_score_display', 'estimated_time_score'):.1f}",
                 f"{_lay_diem_hien_thi(item, 'final_score_display', 'final_score', 'score'):.1f}",
                 f"{_lay_diem_tru_hien_thi(item):.1f}",
                 item.get("contribution_level", ""),
@@ -358,7 +357,7 @@ class MainWindow(QMainWindow):
 
             for col, value in enumerate(values):
                 table_item = QTableWidgetItem(str(value))
-                if col in {1, 4, 5, 6, 7, 8, 9, 10, 12}:
+                if col in {1, 4, 5, 6, 7, 8, 9, 11}:
                     table_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 elif col in {2, 3}:
                     table_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
@@ -373,16 +372,15 @@ class MainWindow(QMainWindow):
             1: 90,
             2: 100,
             3: 100,
-            4: 90,
+            4: 100,
             5: 130,
-            6: 125,
-            7: 140,
+            6: 130,
+            7: 150,
             8: 130,
-            9: 120,
-            10: 100,
-            11: 160,
-            12: 150,
-            13: 300,
+            9: 100,
+            10: 160,
+            11: 150,
+            12: 320,
         }
         for column, width in column_widths.items():
             self.contributorTable.setColumnWidth(column, width)
@@ -392,7 +390,7 @@ class MainWindow(QMainWindow):
             return
 
         headers = [
-            "Contributor",
+            "Thành viên",
             "SHA",
             "Message",
             "Lý do bị đánh dấu",
@@ -434,8 +432,39 @@ class MainWindow(QMainWindow):
                     self.suspiciousCommitTable.setItem(row_index, col, table_item)
 
         self.suspiciousCommitTable.resizeRowsToContents()
-        for column, width in {0: 130, 1: 90, 2: 320, 3: 420, 4: 150}.items():
+        for column, width in {0: 140, 1: 90, 2: 380, 3: 460, 4: 160}.items():
             self.suspiciousCommitTable.setColumnWidth(column, width)
+
+    def _tao_noi_dung_nhan_xet_ai(self, ket_qua, contributors):
+        parts = []
+        ai_summary = str(ket_qua.get("ai_summary", "") or "").strip()
+        if ai_summary:
+            parts.append("Nhận xét tổng quan\n" + ai_summary)
+
+        highlighted = sorted(
+            contributors,
+            key=lambda item: _lay_diem_hien_thi(item, "final_score_display", "final_score", "score"),
+            reverse=True,
+        )[:3]
+        if highlighted:
+            lines = []
+            for item in highlighted:
+                contributor = item.get("contributor", "Không rõ")
+                final_score = _lay_diem_hien_thi(
+                    item,
+                    "final_score_display",
+                    "final_score",
+                    "score",
+                )
+                quality_score = _lay_diem_hien_thi(item, "quality_score_display", "quality_score")
+                short_summary = item.get("short_summary", item.get("ai_summary", ""))
+                lines.append(
+                    f"- {contributor}: {final_score:.1f}/10, chất lượng "
+                    f"{quality_score:.1f}/10. {short_summary}"
+                )
+            parts.append("Contributor nổi bật\n" + "\n".join(lines))
+
+        return "\n\n".join(parts) if parts else "Chưa có nhận xét. Hãy phân tích kho GitHub trước."
 
     def _kiem_tra_co_ket_qua(self):
         if not self.current_result:

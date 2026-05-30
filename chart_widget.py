@@ -45,7 +45,7 @@ def _style_axis(ax, title, ylabel=None):
 class ChartWidget(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.figure = Figure(figsize=(12, 9))
+        self.figure = Figure(figsize=(12, 7))
         self.canvas = FigureCanvas(self.figure)
 
         layout = QVBoxLayout(self)
@@ -85,18 +85,14 @@ class ChartWidget(QWidget):
         deletions = [item.get("total_deletions", item.get("deletions", 0)) for item in data]
         penalty_scores = [_penalty_display(item) for item in data]
         estimated_hours = [item.get("estimated_coding_hours", 0) for item in data]
-        active_days = [item.get("active_days", 0) for item in data]
 
-        axes = self.figure.subplots(3, 3)
+        axes = self.figure.subplots(2, 3)
         ax_pie = axes[0][0]
         ax_quality = axes[0][1]
         ax_suspicious = axes[0][2]
         ax_changes = axes[1][0]
         ax_penalty = axes[1][1]
         ax_time = axes[1][2]
-        ax_days = axes[2][0]
-        axes[2][1].axis("off")
-        axes[2][2].axis("off")
 
         total_score = sum(final_scores)
         if total_score > 0:
@@ -155,17 +151,12 @@ class ChartWidget(QWidget):
         ax_time.grid(axis="y", alpha=0.25)
         _annotate_bars(ax_time, estimated_hours)
 
-        ax_days.bar(names, active_days, color="#45818e")
-        _style_axis(ax_days, "Số ngày hoạt động", "Ngày")
-        ax_days.grid(axis="y", alpha=0.25)
-        _annotate_bars(ax_days, active_days, fmt="{:.0f}")
-
         self.figure.subplots_adjust(
             left=0.06,
             right=0.98,
             top=0.92,
-            bottom=0.10,
+            bottom=0.14,
             wspace=0.35,
-            hspace=0.78,
+            hspace=0.55,
         )
         self.canvas.draw()

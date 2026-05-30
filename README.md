@@ -30,7 +30,17 @@
 - Hiển thị nhiều biểu đồ: điểm cuối, điểm chất lượng, commit cần xem lại, dòng thêm/xóa, điểm trừ, giờ code ước tính, số ngày hoạt động.
 - Xuất báo cáo Markdown/CSV/PDF vào thư mục `reports/`.
 
-## 4. Công Nghệ Sử Dụng
+## 4. Giao Diện Dashboard
+
+Giao diện được chia thành 3 tab để dễ demo và dễ theo dõi:
+
+- **Dashboard tổng quan**: hiển thị các chỉ số tổng quan của repository và toàn bộ biểu đồ đánh giá.
+- **Chi tiết thành viên**: hiển thị bảng contributor, điểm /10, điểm trừ, mức đánh giá và khung nhận xét AI.
+- **Commit cần xem lại**: hiển thị danh sách commit kém chất lượng hoặc commit cần kiểm tra lại, kèm lý do và mức độ nghi ngờ.
+
+Vùng nhập thông tin repository, token, số commit và các nút xuất báo cáo luôn nằm phía trên cùng.
+
+## 5. Công Nghệ Sử Dụng
 
 - Python
 - PyQt6
@@ -43,7 +53,7 @@
 - PyInstaller
 - Rule-based AI
 
-## 5. Cấu Trúc Thư Mục
+## 6. Cấu Trúc Thư Mục
 
 ```text
 .
@@ -63,7 +73,7 @@
 
 Các thư mục/file runtime như `.env`, `.venv`, `.git`, `__pycache__`, `.idea`, `build/`, `dist/`, database local và `reports/` không nên đưa vào bản nộp source hoặc bản build.
 
-## 6. Thuật Toán Đánh Giá
+## 7. Thuật Toán Đánh Giá
 
 Hệ thống giữ điểm nội bộ theo thang 0-100 để dễ tính toán, sau đó hiển thị điểm chính theo thang 1-10:
 
@@ -105,7 +115,7 @@ Mức đánh giá theo điểm `/10`:
 - `3.0 - 4.9`: Đóng góp thấp
 - `< 3.0`: Cần cải thiện
 
-## 7. Ước Tính Thời Gian Code
+## 8. Ước Tính Thời Gian Code
 
 GitHub không lưu chính xác thời gian lập trình, vì vậy hệ thống chỉ ước tính từ thời gian commit:
 
@@ -117,7 +127,7 @@ GitHub không lưu chính xác thời gian lập trình, vì vậy hệ thống 
 
 Chỉ số này dùng để tham khảo, không được xem là thời gian làm việc tuyệt đối.
 
-## 8. AI Nhận Xét
+## 9. AI Nhận Xét
 
 Module `ai_summary.py` tạo nhận xét rule-based bằng tiếng Việt, gồm:
 
@@ -135,7 +145,7 @@ Ví dụ nhận xét:
 Thành viên đạt 8.4/10. Hệ thống ước tính có khoảng 4.5 giờ hoạt động code qua 3 phiên làm việc. Điểm mạnh là có nhiều thay đổi ở file code chính và commit tương đối đều. Tuy nhiên vẫn có 2 commit cần xem lại do message còn chung chung. Nên viết commit message cụ thể hơn và tránh commit chỉ sửa file tự động.
 ```
 
-## 9. Hướng Dẫn Cài Đặt Và Chạy Bằng Python
+## 10. Hướng Dẫn Cài Đặt Và Chạy Bằng Python
 
 Cài thư viện:
 
@@ -157,7 +167,7 @@ python app.py --cli
 
 Repo public có thể chạy không cần token. Nếu GitHub API bị giới hạn request, hãy thêm token cá nhân vào `.env` hoặc nhập token trực tiếp trong giao diện.
 
-## 10. Cấu Hình `.env`
+## 11. Cấu Hình `.env`
 
 Tạo file `.env` từ `.env.example`:
 
@@ -184,7 +194,7 @@ Lưu ý:
 - Không commit file `.env` lên GitHub.
 - File `.env` thật không được đóng gói vào `.exe`.
 
-## 11. Hướng Dẫn Build File `.exe`
+## 12. Hướng Dẫn Build File `.exe`
 
 Cài thư viện:
 
@@ -218,7 +228,7 @@ dist/GitHub Contribution AI/GitHub Contribution AI.exe
 
 Trong project này, `main_window.ui` được load qua hàm `resource_path()` để chạy đúng cả khi chạy source và khi đóng gói bằng PyInstaller. Thư mục `reports/` được tự tạo khi ứng dụng chạy nếu chưa tồn tại.
 
-## 12. Cách Gửi App Cho Người Khác Dùng
+## 13. Cách Gửi App Cho Người Khác Dùng
 
 Khi gửi cho người khác, hãy gửi cả thư mục:
 
@@ -236,7 +246,7 @@ GitHub Contribution AI.exe
 
 Nếu cần phân tích repository private, người nhận có thể nhập GitHub token trực tiếp trong giao diện hoặc tạo file `.env` riêng đặt cạnh file `.exe`. Không gửi token thật kèm source code hoặc bản nộp.
 
-## 13. Lưu Ý Khi Dùng Bản `.exe`
+## 14. Lưu Ý Khi Dùng Bản `.exe`
 
 - Repo public thường không cần token.
 - Nếu bị giới hạn GitHub API, hãy dùng GitHub token cá nhân.
@@ -245,7 +255,7 @@ Nếu cần phân tích repository private, người nhận có thể nhập Git
 - Nếu không xuất được PDF/CSV/Markdown, kiểm tra quyền ghi thư mục `reports/`.
 - Báo cáo được sinh trong thư mục `reports/` cạnh file `.exe` khi chạy bản build.
 
-## 14. Kiểm Thử Gợi Ý
+## 15. Kiểm Thử Gợi Ý
 
 Chạy kiểm tra cú pháp:
 
@@ -281,7 +291,7 @@ Kết quả mong muốn:
 - Xuất được Markdown/CSV/PDF.
 - Điểm hiển thị theo thang `/10`.
 
-## 15. Hướng Phát Triển
+## 16. Hướng Phát Triển
 
 - Tích hợp AI API thật để sinh nhận xét tự nhiên hơn.
 - Phân tích Pull Request, Issue, Review và Comment.
