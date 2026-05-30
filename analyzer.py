@@ -180,6 +180,11 @@ def _normalize_text(text):
     return text.strip()
 
 
+def _la_identity_hop_le(value):
+    normalized = _normalize_text(value)
+    return bool(normalized) and normalized not in {"khong xac dinh", "unknown", "none", "null"}
+
+
 def _first_line(message):
     return (message or "").strip().splitlines()[0].strip() if (message or "").strip() else ""
 
@@ -711,13 +716,61 @@ def loc_commit_duoc_tinh_diem(danh_sach_commit):
     }
 
 
-def gom_commit_theo_contributor(danh_sach_commit):
-    """Gom danh sach commit theo contributor."""
-    ket_qua = {}
+def _tao_alias_contributor_tu_github_login(danh_sach_commit):
+    alias_targets = {}
+    identity_keys = (
+        "author_name",
+        "author_email",
+        "ten_hien_thi",
+        "khoa_contributor",
+    )
 
     for commit in danh_sach_commit:
         contributor = normalize_contributor(commit)
-        khoa_contributor = (
+        github_login = contributor.get("github_login") or commit.get("github_login")
+        canonical = _normalize_text(github_login)
+        if not _la_identity_hop_le(canonical):
+            continue
+
+        for key in identity_keys:
+            raw_value = contributor.get(key) or commit.get(key)
+            alias = _normalize_text(raw_value)
+            if not _la_identity_hop_le(alias):
+                continue
+            alias_targets.setdefault(alias, set()).add(canonical)
+
+    return {
+        alias: next(iter(targets))
+        for alias, targets in alias_targets.items()
+        if len(targets) == 1
+    }
+
+
+def _tim_khoa_contributor_chuan(khoa_contributor, contributor, commit, alias_contributor):
+    identity_values = [
+        khoa_contributor,
+        contributor.get("author_name"),
+        contributor.get("author_email"),
+        commit.get("author_name"),
+        commit.get("author_email"),
+    ]
+
+    for value in identity_values:
+        alias = _normalize_text(value)
+        if alias in alias_contributor:
+            return alias_contributor[alias]
+
+    return khoa_contributor
+
+
+def gom_commit_theo_contributor(danh_sach_commit):
+    """Gom danh sach commit theo contributor."""
+    ket_qua = {}
+    alias_contributor = _tao_alias_contributor_tu_github_login(danh_sach_commit)
+
+    for commit in danh_sach_commit:
+        contributor = normalize_contributor(commit)
+        khoa_contributor_goc = (
             contributor.get("khoa_contributor")
             or commit.get("khoa_contributor")
             or "Khong xac dinh"
@@ -727,6 +780,14 @@ def gom_commit_theo_contributor(danh_sach_commit):
             or commit.get("ten_hien_thi")
             or "Khong xac dinh"
         )
+        khoa_contributor = _tim_khoa_contributor_chuan(
+            khoa_contributor_goc,
+            contributor,
+            commit,
+            alias_contributor,
+        )
+        if khoa_contributor != khoa_contributor_goc:
+            ten_hien_thi = khoa_contributor
 
         if khoa_contributor not in ket_qua:
             ket_qua[khoa_contributor] = {
