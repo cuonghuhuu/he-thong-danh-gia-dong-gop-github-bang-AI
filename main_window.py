@@ -157,7 +157,8 @@ class MainWindow(QMainWindow):
         self.contributorTable.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.contributorTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
         self.contributorTable.horizontalHeader().setStretchLastSection(False)
-        self.contributorTable.horizontalHeader().setMinimumSectionSize(80)
+        self.contributorTable.horizontalHeader().setMinimumSectionSize(90)
+        self.contributorTable.horizontalHeader().setDefaultSectionSize(130)
         self.contributorTable.verticalHeader().setVisible(False)
 
         if hasattr(self, "suspiciousCommitTable"):
@@ -172,10 +173,13 @@ class MainWindow(QMainWindow):
             )
             self.suspiciousCommitTable.horizontalHeader().setStretchLastSection(False)
             self.suspiciousCommitTable.horizontalHeader().setMinimumSectionSize(90)
+            self.suspiciousCommitTable.horizontalHeader().setDefaultSectionSize(150)
             self.suspiciousCommitTable.verticalHeader().setVisible(False)
             self.hien_thi_commit_can_xem_lai([])
 
         self.aiTextEdit.setReadOnly(True)
+        if hasattr(self, "topContributorTextEdit"):
+            self.topContributorTextEdit.setReadOnly(True)
         self.statusbar.showMessage("Sẵn sàng.")
 
     def _nap_so_commit_tu_env(self):
@@ -271,6 +275,13 @@ class MainWindow(QMainWindow):
         self.hien_thi_commit_can_xem_lai(contributors)
         self.chart_widget.update_charts(contributors)
         self.aiTextEdit.setPlainText(ket_qua.get("ai_summary", ""))
+        if hasattr(self, "topContributorTextEdit"):
+            top_contributor = contributors[0] if contributors else {}
+            self.topContributorTextEdit.setPlainText(
+                top_contributor.get("ai_summary")
+                or top_contributor.get("short_summary")
+                or "Chưa có contributor nổi bật để nhận xét."
+            )
         self._set_result_buttons_enabled(True)
         ignored_count = ket_qua.get("overview", {}).get("ignored_commit_count", 0)
         if ignored_count:
@@ -392,7 +403,7 @@ class MainWindow(QMainWindow):
             return
 
         headers = [
-            "Contributor",
+            "Thành viên",
             "SHA",
             "Message",
             "Lý do bị đánh dấu",
