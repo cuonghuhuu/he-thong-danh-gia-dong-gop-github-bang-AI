@@ -303,6 +303,7 @@ def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
 
     overview = ket_qua_phan_tich.get("overview", {})
     contributors = ket_qua_phan_tich.get("contributors", [])
+    ignored_commits = ket_qua_phan_tich.get("ignored_commits", [])
 
     with PdfPages(path) as pdf:
         fig = Figure(figsize=(8.27, 11.69))
@@ -328,6 +329,19 @@ def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
                 f"suspicious={item.get('suspicious_commit_count', 0)}"
             )
 
+        lines.extend(["", "Commit bot/tu dong da loai:"])
+        if ignored_commits:
+            for commit in ignored_commits[:10]:
+                reasons = ", ".join(commit.get("reasons", []))
+                lines.append(
+                    f"- {commit.get('short_sha', '')} - "
+                    f"{commit.get('contributor', '')}: {commit.get('message', '')} ({reasons})"
+                )
+            if len(ignored_commits) > 10:
+                lines.append(f"- Con {len(ignored_commits) - 10} commit khac")
+        else:
+            lines.append("- Khong co commit bot hoac commit tu dong bi loai.")
+
         ax.text(0.04, 0.96, "\n".join(lines), va="top", ha="left", fontsize=10, wrap=True)
         pdf.savefig(fig, bbox_inches="tight")
 
@@ -348,6 +362,7 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
 
     overview = ket_qua_phan_tich.get("overview", {})
     contributors = ket_qua_phan_tich.get("contributors", [])
+    ignored_commits = ket_qua_phan_tich.get("ignored_commits", [])
     ai_summary = ket_qua_phan_tich.get("ai_summary", "")
 
     document = SimpleDocTemplate(
@@ -463,6 +478,19 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
 
     if not has_suspicious_commit:
         elements.append(_paragraph("Không có commit đáng nghi nổi bật.", styles["Normal"]))
+
+    elements.append(Spacer(1, 0.35 * cm))
+    elements.append(Paragraph("Commit bot/tự động đã loại", styles["Heading2"]))
+    if ignored_commits:
+        for commit in ignored_commits:
+            reasons = ", ".join(commit.get("reasons", []))
+            text = (
+                f"{commit.get('short_sha', '')} - {commit.get('contributor', '')}: "
+                f"{commit.get('message', '')} ({reasons})"
+            )
+            elements.append(_paragraph(text, styles["Normal"]))
+    else:
+        elements.append(_paragraph("Không có commit bot hoặc commit tự động bị loại.", styles["Normal"]))
 
     elements.append(Spacer(1, 0.35 * cm))
     elements.append(Paragraph("Nhận xét AI rule-based", styles["Heading2"]))
