@@ -136,6 +136,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 .venv
 .venv/
@@ -193,6 +195,7 @@ cython_debug/
 .ruff_cache/
 
 # App runtime outputs
+report.md
 analysis_history.sqlite3
 analysis_history.sqlite3-shm
 analysis_history.sqlite3-wal

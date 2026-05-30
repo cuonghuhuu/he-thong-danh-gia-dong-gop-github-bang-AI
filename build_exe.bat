@@ -29,7 +29,7 @@ python -m PyInstaller ^
   --windowed ^
   --name "GitHub Contribution AI" ^
   --icon "assets/app_icon.ico" ^
-  --add-data "main_window.ui;." ^
+  --add-data "ui/main_window.ui;ui" ^
   --add-data "assets;assets" ^
   --hidden-import "matplotlib.backends.backend_qtagg" ^
   app.py
@@ -38,6 +38,9 @@ if errorlevel 1 (
     echo Loi: Build exe that bai.
     exit /b 1
 )
+
+if exist "dist\GitHub Contribution AI\.env" del /q "dist\GitHub Contribution AI\.env"
+if exist "dist\GitHub Contribution AI\_internal\.env" del /q "dist\GitHub Contribution AI\_internal\.env"
 
 echo [4/4] Hoan tat.
 echo File exe nam tai: dist\GitHub Contribution AI\GitHub Contribution AI.exe

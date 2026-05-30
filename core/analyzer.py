@@ -4,13 +4,13 @@ import unicodedata
 from datetime import datetime
 from pathlib import PurePosixPath
 
-from ai_summary import (
+from core.ai_summary import (
     tao_nhan_xet_ai_rule_based,
     tao_nhan_xet_don_gian,
     tao_tong_ket_repo,
 )
-from github_client import lay_danh_sach_commit_chi_tiet, lay_thong_tin_repository
-from github_client import normalize_contributor
+from services.github_client import lay_danh_sach_commit_chi_tiet, lay_thong_tin_repository
+from services.github_client import normalize_contributor
 
 
 SOURCE_CODE_EXTENSIONS = {
@@ -807,6 +807,48 @@ def _tinh_integration_points(commit, quality_item):
     return _clamp(points, 0, 55)
 
 
+def _cap_nhat_file_sets(
+    ten_file,
+    tap_hop_file,
+    core_files,
+    ui_config_files,
+    source_files,
+    document_files,
+    generated_files,
+):
+    tap_hop_file.add(ten_file)
+    file_type = classify_file(ten_file)
+    if file_type == "core":
+        core_files.add(ten_file)
+        source_files.add(ten_file)
+    elif file_type == "ui_config":
+        ui_config_files.add(ten_file)
+        source_files.add(ten_file)
+    elif file_type == "document":
+        document_files.add(ten_file)
+    elif file_type == "generated":
+        generated_files.add(ten_file)
+
+
+def _tao_suspicious_commit_item(quality_item):
+    return {
+        "sha": quality_item.get("sha", ""),
+        "short_sha": quality_item.get("short_sha", ""),
+        "message": quality_item.get("message", ""),
+        "reasons": quality_item.get("suspicious_reasons", []),
+        "penalty_score": quality_item.get("penalty_score", 0),
+        "penalty_score_display": quality_item.get("penalty_score_display", 0),
+        "suspicion_score_display": quality_item.get("suspicion_score_display", 0),
+        "suspicion_level": quality_item.get("suspicion_level", "Thấp"),
+    }
+
+
+def _avg_quality(quality_items, key):
+    if not quality_items:
+        return 0.0
+    return sum(item.get(key, 0) for item in quality_items) / len(quality_items)
+
+
 def tinh_chi_so_contributor(du_lieu_gom):
     """Tinh metrics va metrics chat luong cho tung contributor."""
     ket_qua = []
@@ -838,18 +880,15 @@ def tinh_chi_so_contributor(du_lieu_gom):
             tong_deletions += commit.get("deletions", 0)
 
             for ten_file in commit.get("changed_files", []):
-                tap_hop_file.add(ten_file)
-                file_type = classify_file(ten_file)
-                if file_type == "core":
-                    core_files.add(ten_file)
-                    source_files.add(ten_file)
-                elif file_type == "ui_config":
-                    ui_config_files.add(ten_file)
-                    source_files.add(ten_file)
-                elif file_type == "document":
-                    document_files.add(ten_file)
-                elif file_type == "generated":
-                    generated_files.add(ten_file)
+                _cap_nhat_file_sets(
+                    ten_file,
+                    tap_hop_file,
+                    core_files,
+                    ui_config_files,
+                    source_files,
+                    document_files,
+                    generated_files,
+                )
 
             quality_item = danh_gia_chat_luong_commit(commit)
             quality_items.append(quality_item)
@@ -867,18 +906,7 @@ def tinh_chi_so_contributor(du_lieu_gom):
                 integration_raw += integration_points
 
             if quality_item.get("is_suspicious"):
-                suspicious_commits.append(
-                    {
-                        "sha": quality_item.get("sha", ""),
-                        "short_sha": quality_item.get("short_sha", ""),
-                        "message": quality_item.get("message", ""),
-                        "reasons": quality_item.get("suspicious_reasons", []),
-                        "penalty_score": quality_item.get("penalty_score", 0),
-                        "penalty_score_display": quality_item.get("penalty_score_display", 0),
-                        "suspicion_score_display": quality_item.get("suspicion_score_display", 0),
-                        "suspicion_level": quality_item.get("suspicion_level", "Thấp"),
-                    }
-                )
+                suspicious_commits.append(_tao_suspicious_commit_item(quality_item))
 
         commit_count = len(danh_sach_commit)
         ten_hien_thi = du_lieu_contributor.get("ten_hien_thi", "Khong xac dinh")
@@ -887,13 +915,12 @@ def tinh_chi_so_contributor(du_lieu_gom):
         suspicious_commit_ratio = suspicious_commit_count / commit_count if commit_count else 0
         time_stats = _tinh_thoi_gian_code_uoc_tinh(danh_sach_commit)
 
-        def avg(key):
-            if not quality_items:
-                return 0.0
-            return sum(item.get(key, 0) for item in quality_items) / len(quality_items)
-
-        quality_score = avg("quality_score")
-        penalty_score = _clamp(avg("penalty_score") + suspicious_commit_ratio * 12, 0, 30)
+        quality_score = _avg_quality(quality_items, "quality_score")
+        penalty_score = _clamp(
+            _avg_quality(quality_items, "penalty_score") + suspicious_commit_ratio * 12,
+            0,
+            30,
+        )
         if suspicious_commit_ratio >= 0.4:
             penalty_reasons.append("tỷ lệ commit cần xem lại cao")
 
@@ -950,12 +977,18 @@ def tinh_chi_so_contributor(du_lieu_gom):
                 "coding_sessions": time_stats["coding_sessions"],
                 "integration_commit_count": integration_commit_count,
                 "integration_raw": integration_raw,
-                "commit_message_score": avg("commit_message_score"),
-                "commit_message_score_display": quy_doi_diem_hien_thi(avg("commit_message_score")),
-                "meaningful_change_score": avg("meaningful_change_score"),
-                "meaningful_change_score_display": quy_doi_diem_hien_thi(avg("meaningful_change_score")),
-                "code_impact_score": avg("code_impact_score"),
-                "code_impact_score_display": quy_doi_diem_hien_thi(avg("code_impact_score")),
+                "commit_message_score": _avg_quality(quality_items, "commit_message_score"),
+                "commit_message_score_display": quy_doi_diem_hien_thi(
+                    _avg_quality(quality_items, "commit_message_score")
+                ),
+                "meaningful_change_score": _avg_quality(quality_items, "meaningful_change_score"),
+                "meaningful_change_score_display": quy_doi_diem_hien_thi(
+                    _avg_quality(quality_items, "meaningful_change_score")
+                ),
+                "code_impact_score": _avg_quality(quality_items, "code_impact_score"),
+                "code_impact_score_display": quy_doi_diem_hien_thi(
+                    _avg_quality(quality_items, "code_impact_score")
+                ),
                 "quality_score": quality_score,
                 "quality_score_display": quy_doi_diem_hien_thi(quality_score),
                 "penalty_score": penalty_score,
