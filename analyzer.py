@@ -109,6 +109,25 @@ TECHNICAL_WORDS = {
     "handler",
     "validation",
 }
+INTEGRATION_MESSAGE_PREFIXES = (
+    "merge pull request ",
+    "merge branch ",
+    "merge remote-tracking branch ",
+    "merge remote tracking branch ",
+    "merge tag ",
+)
+INTEGRATION_DETAIL_WORDS = {
+    "from",
+    "into",
+    "main",
+    "master",
+    "develop",
+    "feature",
+    "release",
+    "hotfix",
+    "conflict",
+    "resolve",
+}
 
 
 def _clamp(value, min_value=0.0, max_value=100.0):
@@ -134,6 +153,55 @@ def _short_sha(sha):
 
 def _file_name(path):
     return PurePosixPath((path or "").replace("\\", "/")).name.lower()
+
+
+def _la_message_tich_hop(message):
+    normalized = _normalize_text(_first_line(message))
+    return any(
+        normalized.startswith(prefix)
+        for prefix in INTEGRATION_MESSAGE_PREFIXES
+    )
+
+
+def _phan_tich_commit_tich_hop(commit, file_stats):
+    message = commit.get("message", "")
+    normalized = _normalize_text(_first_line(message))
+    is_integration = _la_message_tich_hop(message)
+    if not is_integration:
+        return {
+            "is_integration_commit": False,
+            "is_valid_integration_commit": False,
+            "integration_reasons": [],
+        }
+
+    additions = max(commit.get("additions", 0), 0)
+    deletions = max(commit.get("deletions", 0), 0)
+    total_changes = additions + deletions
+    has_project_files = bool(
+        file_stats["source_files"]
+        or file_stats["document_files"]
+        or file_stats["other_files"]
+    )
+    generated_only = bool(file_stats["generated_files"]) and not has_project_files
+    has_traceable_change = has_project_files or total_changes > 0
+    has_merge_context = any(word in normalized.split() for word in INTEGRATION_DETAIL_WORDS)
+    is_pull_request_merge = normalized.startswith("merge pull request ")
+
+    reasons = ["commit tích hợp hệ thống"]
+    if is_pull_request_merge:
+        reasons.append("merge pull request")
+    elif normalized.startswith("merge branch "):
+        reasons.append("merge branch")
+
+    is_valid = not generated_only and (has_traceable_change or is_pull_request_merge or has_merge_context)
+    if not is_valid:
+        reasons.append("thiếu dấu hiệu thay đổi tích hợp có thể kiểm chứng")
+
+    return {
+        "is_integration_commit": True,
+        "is_valid_integration_commit": is_valid,
+        "integration_reasons": reasons,
+    }
 
 
 def phan_loai_file(path):
@@ -264,8 +332,11 @@ def danh_gia_commit_message(message):
     word_count = len(words)
     has_good_action = any(word in GOOD_ACTION_WORDS for word in words)
     has_technical_word = any(word in TECHNICAL_WORDS for word in words)
+    is_integration_message = _la_message_tich_hop(first_line)
 
-    if normalized in SUSPICIOUS_EXACT_MESSAGES:
+    if is_integration_message:
+        score = 84.0
+    elif normalized in SUSPICIOUS_EXACT_MESSAGES:
         score = 25.0
         reasons.append("commit message quá chung chung")
     elif word_count <= 2:
@@ -273,7 +344,7 @@ def danh_gia_commit_message(message):
         reasons.append("commit message quá ngắn")
 
     for phrase, reason in SUSPICIOUS_PHRASES.items():
-        if phrase in normalized:
+        if not is_integration_message and phrase in normalized:
             score = min(score, 35.0)
             if reason not in reasons:
                 reasons.append(reason)
@@ -300,6 +371,7 @@ def danh_gia_y_nghia_thay_doi(commit, file_stats):
     total_changes = additions + deletions
     files_detail = commit.get("files_detail") or []
     logic_count, changed_lines, non_empty_changed_lines = _dem_dong_logic(files_detail)
+    integration_info = _phan_tich_commit_tich_hop(commit, file_stats)
     reasons = []
 
     if total_changes <= 0:
@@ -328,11 +400,23 @@ def danh_gia_y_nghia_thay_doi(commit, file_stats):
     if changed_lines > 0 and non_empty_changed_lines == 0:
         score = min(score, 25.0)
         reasons.append("thay đổi chủ yếu là khoảng trắng hoặc dòng trống")
+    if integration_info["is_valid_integration_commit"]:
+        score = max(score, 66.0)
+        reasons = [
+            reason
+            for reason in reasons
+            if reason
+            not in {
+                "commit không có thay đổi additions/deletions đáng kể",
+                "commit chủ yếu sửa tài liệu/báo cáo",
+            }
+        ]
 
     return _clamp(score), reasons
 
 
-def danh_gia_tac_dong_code(file_stats):
+def danh_gia_tac_dong_code(file_stats, integration_info=None):
+    integration_info = integration_info or {}
     reasons = []
     source_count = len(file_stats["source_files"])
     doc_count = len(file_stats["document_files"])
@@ -357,6 +441,13 @@ def danh_gia_tac_dong_code(file_stats):
         score -= min(25.0, generated_count * 8)
         if "commit có sửa file rác/môi trường local" not in reasons:
             reasons.append("commit có sửa file rác/môi trường local")
+    if integration_info.get("is_valid_integration_commit") and not generated_count:
+        score = max(score, 58.0)
+        reasons = [
+            reason
+            for reason in reasons
+            if reason != "commit thiên về tài liệu/báo cáo"
+        ]
 
     return _clamp(score), reasons
 
@@ -364,9 +455,10 @@ def danh_gia_tac_dong_code(file_stats):
 def danh_gia_chat_luong_commit(commit):
     """Tra ve diem chat luong va ly do commit dang nghi neu co."""
     file_stats = _thong_ke_file_commit(commit)
+    integration_info = _phan_tich_commit_tich_hop(commit, file_stats)
     message_score, message_reasons = danh_gia_commit_message(commit.get("message", ""))
     meaningful_score, meaningful_reasons = danh_gia_y_nghia_thay_doi(commit, file_stats)
-    code_impact_score, code_reasons = danh_gia_tac_dong_code(file_stats)
+    code_impact_score, code_reasons = danh_gia_tac_dong_code(file_stats, integration_info)
 
     suspicious_reasons = []
     suspicious_reasons.extend(message_reasons)
@@ -382,7 +474,11 @@ def danh_gia_chat_luong_commit(commit):
         penalty += 8
     if file_stats["generated_files"]:
         penalty += 8
-    if file_stats["document_files"] and not file_stats["source_files"]:
+    if (
+        file_stats["document_files"]
+        and not file_stats["source_files"]
+        and not integration_info["is_valid_integration_commit"]
+    ):
         penalty += 4
 
     quality_score = (
@@ -405,6 +501,9 @@ def danh_gia_chat_luong_commit(commit):
         "penalty_score": penalty,
         "is_suspicious": is_suspicious,
         "suspicious_reasons": list(dict.fromkeys(suspicious_reasons)),
+        "is_integration_commit": integration_info["is_integration_commit"],
+        "is_valid_integration_commit": integration_info["is_valid_integration_commit"],
+        "integration_reasons": integration_info["integration_reasons"],
         "source_file_count": len(file_stats["source_files"]),
         "document_file_count": len(file_stats["document_files"]),
         "generated_file_count": len(file_stats["generated_files"]),
@@ -526,6 +625,7 @@ def tinh_chi_so_contributor(du_lieu_gom):
         source_changes = 0
         document_changes = 0
         generated_changes = 0
+        integration_commit_count = 0
 
         for commit in danh_sach_commit:
             tong_additions += commit.get("additions", 0)
@@ -546,6 +646,8 @@ def tinh_chi_so_contributor(du_lieu_gom):
             source_changes += quality_item.get("source_changes", 0)
             document_changes += quality_item.get("document_changes", 0)
             generated_changes += quality_item.get("generated_changes", 0)
+            if quality_item.get("is_valid_integration_commit"):
+                integration_commit_count += 1
 
             if quality_item.get("is_suspicious"):
                 suspicious_commits.append(
@@ -591,6 +693,7 @@ def tinh_chi_so_contributor(du_lieu_gom):
                 "source_changes": source_changes,
                 "document_changes": document_changes,
                 "generated_changes": generated_changes,
+                "integration_commit_count": integration_commit_count,
                 "file_impact_raw": file_impact_raw,
                 "commit_quality_items": quality_items,
                 "suspicious_commits": suspicious_commits,

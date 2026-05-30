@@ -20,6 +20,7 @@ def xac_dinh_loai_dong_gop(item):
     suspicious_ratio = item.get("suspicious_commit_ratio", 0)
     source_file_count = item.get("source_file_count", 0)
     document_file_count = item.get("document_file_count", 0)
+    integration_commit_count = item.get("integration_commit_count", 0)
 
     if suspicious_ratio >= 0.4 and item.get("suspicious_commit_count", 0) > 0:
         return "Contributor có nhiều commit kém chất lượng"
@@ -32,6 +33,9 @@ def xac_dinh_loai_dong_gop(item):
 
     if commit_count >= 3 and quality_score < 60:
         return "Contributor tích cực nhưng cần cải thiện chất lượng"
+
+    if integration_commit_count >= 2 and quality_score >= 55 and penalty_score < 18:
+        return "Contributor có vai trò tích hợp hệ thống"
 
     if document_file_count > 0 and document_file_count >= source_file_count:
         return "Contributor thiên về tài liệu/báo cáo"
