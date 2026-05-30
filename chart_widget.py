@@ -53,15 +53,16 @@ class ChartWidget(QWidget):
             )
         else:
             ax_pie.text(0.5, 0.5, "Chưa có điểm", ha="center", va="center")
-        ax_pie.set_title("Tỷ lệ đóng góp theo final score")
+        ax_pie.set_title("Tỷ lệ đóng góp theo điểm cuối")
 
         ax_quality.bar(names, quality_scores, color="#2f7d5c")
-        ax_quality.set_title("Quality score")
+        ax_quality.set_title("Điểm chất lượng của thành viên")
+        ax_quality.set_ylabel("Điểm")
         ax_quality.set_ylim(0, 100)
         ax_quality.tick_params(axis="x", rotation=35, labelsize=8)
 
         ax_suspicious.bar(names, suspicious_counts, color="#c75c5c")
-        ax_suspicious.set_title("Commit cần xem lại")
+        ax_suspicious.set_title("Số commit cần xem lại")
         ax_suspicious.set_ylabel("Số commit")
         ax_suspicious.tick_params(axis="x", rotation=35, labelsize=8)
 
