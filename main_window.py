@@ -275,7 +275,7 @@ class MainWindow(QMainWindow):
         ignored_count = ket_qua.get("overview", {}).get("ignored_commit_count", 0)
         if ignored_count:
             self.statusbar.showMessage(
-                f"Phân tích hoàn tất. Đã loại {ignored_count} commit bot/tự động."
+                f"Phân tích hoàn tất. Đã loại {ignored_count} commit bot khỏi điểm chính."
             )
         else:
             self.statusbar.showMessage("Phân tích hoàn tất.")

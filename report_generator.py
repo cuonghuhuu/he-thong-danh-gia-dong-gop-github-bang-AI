@@ -58,6 +58,8 @@ def _diem_tru_hien_thi(penalty_score):
 
 
 def _lay_score_hien_thi(item):
+    if "display_score_10" in item and item.get("display_score_10") is not None:
+        return _lay_float(item.get("display_score_10"))
     if "final_score_display" in item and item.get("final_score_display") is not None:
         return _lay_float(item.get("final_score_display"))
     return _diem_hien_thi(_lay_score(item))
@@ -271,6 +273,80 @@ def tao_thong_ke_bieu_do_markdown(contributors):
     return "\n".join(lines)
 
 
+def _tao_chi_tiet_diem_rows(contributors):
+    rows = []
+    for item in contributors:
+        rows.append(
+            [
+                _lay_contributor(item) or "Không xác định",
+                f"{_lay_float(item.get('commit_score')):.1f}",
+                f"{_lay_float(item.get('code_volume_score')):.1f}",
+                f"{_lay_float(item.get('file_impact_score')):.1f}",
+                f"{_lay_float(item.get('commit_message_score')):.1f}",
+                f"{_lay_float(item.get('meaningful_change_score')):.1f}",
+                f"{_lay_float(item.get('quality_score')):.1f}",
+                f"{_lay_float(item.get('consistency_score')):.1f}",
+                f"{_lay_float(item.get('estimated_time_score')):.1f}",
+                f"{_lay_float(item.get('integration_score')):.1f}",
+                f"{_lay_float(item.get('penalty_score')):.1f}",
+                f"{_lay_float(item.get('final_score_100', item.get('final_score'))):.1f}",
+                f"{_lay_score_hien_thi(item):.1f}",
+                f"{_lay_float(item.get('estimated_coding_hours')):.1f}",
+                item.get("active_days", 0),
+                item.get("coding_sessions", 0),
+                item.get("suspicious_commit_count", 0),
+            ]
+        )
+    return rows
+
+
+def _chi_tiet_diem_headers():
+    return [
+        "Contributor",
+        "commit_score",
+        "code_volume_score",
+        "file_impact_score",
+        "commit_message_score",
+        "meaningful_change_score",
+        "quality_score",
+        "consistency_score",
+        "estimated_time_score",
+        "integration_score",
+        "penalty_score",
+        "final_score_100",
+        "display_score_10",
+        "estimated_coding_hours",
+        "active_days",
+        "coding_sessions",
+        "suspicious_commit_count",
+    ]
+
+
+def tao_chi_tiet_diem_markdown(contributors):
+    lines = ["## Chi tiết điểm nội bộ", ""]
+    headers = _chi_tiet_diem_headers()
+    lines.extend(
+        [
+            "| " + " | ".join(headers) + " |",
+            "| " + " | ".join(["---"] * len(headers)) + " |",
+        ]
+    )
+
+    if not contributors:
+        lines.append("| " + " | ".join(["Không có dữ liệu"] + [""] * (len(headers) - 1)) + " |")
+    else:
+        for row in _tao_chi_tiet_diem_rows(contributors):
+            lines.append("| " + " | ".join(_markdown_cell(value) for value in row) + " |")
+
+    lines.append("")
+    lines.append(
+        "Các trường score nội bộ dùng thang 0-100, riêng `penalty_score` dùng thang 0-30 "
+        "và `display_score_10` là điểm cuối hiển thị theo thang /10."
+    )
+    lines.append("")
+    return "\n".join(lines)
+
+
 def tao_danh_sach_commit_bi_loai_markdown(ignored_commits):
     if not ignored_commits:
         return ""
@@ -344,6 +420,8 @@ def tao_bao_cao_markdown(ket_qua_phan_tich, tong_ket_repo=None):
         "## Bảng tổng hợp contributor",
         "",
         tao_bang_markdown(contributors),
+        "",
+        tao_chi_tiet_diem_markdown(contributors),
         "",
         tao_thong_ke_bieu_do_markdown(contributors),
         "",
@@ -453,6 +531,12 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
         writer.writerow(["Thống kê hỗ trợ biểu đồ"])
         for line in _tao_dong_thong_ke_bieu_do(contributors):
             writer.writerow([line])
+
+        writer.writerow([])
+        writer.writerow(["Chi tiết điểm nội bộ"])
+        writer.writerow(_chi_tiet_diem_headers())
+        for row in _tao_chi_tiet_diem_rows(contributors):
+            writer.writerow(row)
 
         if ignored_commits:
             writer.writerow([])
@@ -617,6 +701,24 @@ def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
             )
             if _lay_nhan_xet_ai(item):
                 lines.append(f"  Nhận xét AI: {_lay_nhan_xet_ai(item)}")
+        lines.append("")
+        lines.append("Chi tiết điểm nội bộ:")
+        for row in _tao_chi_tiet_diem_rows(contributors):
+            detail = dict(zip(_chi_tiet_diem_headers(), row))
+            lines.append(
+                f"- {detail['Contributor']} | commit_score={detail['commit_score']} | "
+                f"code_volume_score={detail['code_volume_score']} | "
+                f"file_impact_score={detail['file_impact_score']} | "
+                f"commit_message_score={detail['commit_message_score']} | "
+                f"meaningful_change_score={detail['meaningful_change_score']} | "
+                f"quality_score={detail['quality_score']} | "
+                f"consistency_score={detail['consistency_score']} | "
+                f"estimated_time_score={detail['estimated_time_score']} | "
+                f"integration_score={detail['integration_score']} | "
+                f"penalty_score={detail['penalty_score']} | "
+                f"final_score_100={detail['final_score_100']} | "
+                f"display_score_10={detail['display_score_10']}"
+            )
         _them_trang_text_pdf(pdf, "Báo cáo đánh giá đóng góp GitHub bằng AI", lines, font_name)
 
         suspicious_lines = []
@@ -812,6 +914,35 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
         )
     )
     elements.append(table)
+
+    elements.append(Spacer(1, 0.35 * cm))
+    elements.append(Paragraph("Chi tiết điểm nội bộ", styles["Heading2"]))
+    elements.append(
+        _paragraph(
+            "Các trường score nội bộ dùng thang 0-100, penalty_score dùng thang 0-30, "
+            "display_score_10 là điểm cuối hiển thị theo thang /10.",
+            styles["Normal"],
+        )
+    )
+    for row in _tao_chi_tiet_diem_rows(contributors):
+        detail = dict(zip(_chi_tiet_diem_headers(), row))
+        elements.append(
+            _paragraph(
+                f"{detail['Contributor']}: commit_score={detail['commit_score']}, "
+                f"code_volume_score={detail['code_volume_score']}, "
+                f"file_impact_score={detail['file_impact_score']}, "
+                f"commit_message_score={detail['commit_message_score']}, "
+                f"meaningful_change_score={detail['meaningful_change_score']}, "
+                f"quality_score={detail['quality_score']}, "
+                f"consistency_score={detail['consistency_score']}, "
+                f"estimated_time_score={detail['estimated_time_score']}, "
+                f"integration_score={detail['integration_score']}, "
+                f"penalty_score={detail['penalty_score']}, "
+                f"final_score_100={detail['final_score_100']}, "
+                f"display_score_10={detail['display_score_10']}.",
+                styles["Normal"],
+            )
+        )
 
     elements.append(Spacer(1, 0.35 * cm))
     elements.append(Paragraph("Commit cần xem lại", styles["Heading2"]))

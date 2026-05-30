@@ -637,11 +637,16 @@ def danh_gia_chat_luong_commit(commit):
 
 
 def loc_commit_duoc_tinh_diem(danh_sach_commit):
-    """Loai commit bot/tu dong khoi tap du lieu cham diem chinh."""
+    """Loai commit bot khoi tap du lieu cham diem chinh.
+
+    Commit auto report cua contributor that van duoc tinh va co the bi danh dau
+    can xem lai, vi day la tin hieu chat luong dong gop chua tot.
+    """
     commits_duoc_tinh = []
     ignored_commits = []
     ignored_bot_commit_count = 0
     ignored_auto_commit_count = 0
+    auto_report_commit_count = 0
 
     for commit in danh_sach_commit:
         contributor = normalize_contributor(commit)
@@ -672,8 +677,10 @@ def loc_commit_duoc_tinh_diem(danh_sach_commit):
             ignored_bot_commit_count += 1
             ignored_reasons.append("bot commit")
         if is_auto_commit:
-            ignored_auto_commit_count += 1
-            ignored_reasons.append("auto report commit")
+            auto_report_commit_count += 1
+            if is_bot:
+                ignored_auto_commit_count += 1
+                ignored_reasons.append("auto report bot")
 
         commit_moi["is_bot"] = is_bot
         commit_moi["is_auto_commit"] = is_auto_commit
@@ -698,6 +705,7 @@ def loc_commit_duoc_tinh_diem(danh_sach_commit):
     return commits_duoc_tinh, {
         "ignored_bot_commit_count": ignored_bot_commit_count,
         "ignored_auto_commit_count": ignored_auto_commit_count,
+        "auto_report_commit_count": auto_report_commit_count,
         "ignored_commit_count": len(ignored_commits),
         "ignored_commits": ignored_commits,
     }
@@ -889,6 +897,19 @@ def tinh_chi_so_contributor(du_lieu_gom):
         if suspicious_commit_ratio >= 0.4:
             penalty_reasons.append("tỷ lệ commit cần xem lại cao")
 
+        core_code_commit_count = sum(
+            1 for item in quality_items if item.get("source_file_count", 0) > 0
+        )
+        ui_config_commit_count = sum(
+            1 for item in quality_items if item.get("ui_config_file_count", 0) > 0
+        )
+        documentation_commit_count = sum(
+            1 for item in quality_items if item.get("document_file_count", 0) > 0
+        )
+        generated_commit_count = sum(
+            1 for item in quality_items if item.get("generated_file_count", 0) > 0
+        )
+
         ket_qua.append(
             {
                 "khoa_contributor": khoa_contributor,
@@ -914,10 +935,15 @@ def tinh_chi_so_contributor(du_lieu_gom):
                 "document_changes": document_changes,
                 "generated_changes": generated_changes,
                 "file_impact_raw": file_impact_raw,
+                "core_code_commit_count": core_code_commit_count,
+                "ui_config_commit_count": ui_config_commit_count,
+                "documentation_commit_count": documentation_commit_count,
+                "generated_commit_count": generated_commit_count,
                 "commit_quality_items": quality_items,
                 "suspicious_commits": suspicious_commits,
                 "suspicious_commit_count": suspicious_commit_count,
                 "suspicious_commit_ratio": suspicious_commit_ratio,
+                "suspicious_commit_ratio_display": round(suspicious_commit_ratio * 100, 1),
                 "estimated_coding_minutes": time_stats["estimated_coding_minutes"],
                 "estimated_coding_hours": time_stats["estimated_coding_hours"],
                 "active_days": time_stats["active_days"],
@@ -925,8 +951,11 @@ def tinh_chi_so_contributor(du_lieu_gom):
                 "integration_commit_count": integration_commit_count,
                 "integration_raw": integration_raw,
                 "commit_message_score": avg("commit_message_score"),
+                "commit_message_score_display": quy_doi_diem_hien_thi(avg("commit_message_score")),
                 "meaningful_change_score": avg("meaningful_change_score"),
+                "meaningful_change_score_display": quy_doi_diem_hien_thi(avg("meaningful_change_score")),
                 "code_impact_score": avg("code_impact_score"),
+                "code_impact_score_display": quy_doi_diem_hien_thi(avg("code_impact_score")),
                 "quality_score": quality_score,
                 "quality_score_display": quy_doi_diem_hien_thi(quality_score),
                 "penalty_score": penalty_score,
@@ -1025,6 +1054,7 @@ def tinh_diem_dong_gop_co_ban(danh_sach_thong_ke):
             - penalty_score
         )
         final_score = _clamp(final_score)
+        display_score_10 = quy_doi_diem_hien_thi(final_score)
 
         thong_tin_moi = item.copy()
         thong_tin_moi.update(
@@ -1038,16 +1068,18 @@ def tinh_diem_dong_gop_co_ban(danh_sach_thong_ke):
                 "estimated_time_score": estimated_time_score,
                 "integration_score": integration_score,
                 "raw_score": raw_score,
+                "final_score_100": final_score,
                 "final_score": final_score,
                 "score": final_score,
                 "baseline_score": final_score,
+                "display_score_10": display_score_10,
                 "quality_score_display": quy_doi_diem_hien_thi(quality_score),
                 "estimated_time_score_display": quy_doi_diem_hien_thi(estimated_time_score),
                 "consistency_score_display": quy_doi_diem_hien_thi(consistency_score),
                 "integration_score_display": quy_doi_diem_hien_thi(integration_score),
                 "penalty_score_display": quy_doi_diem_tru_hien_thi(penalty_score),
-                "final_score_display": quy_doi_diem_hien_thi(final_score),
-                "score_display": quy_doi_diem_hien_thi(final_score),
+                "final_score_display": display_score_10,
+                "score_display": display_score_10,
             }
         )
         ket_qua.append(thong_tin_moi)
@@ -1095,6 +1127,7 @@ def tao_overview(
         "ignored_commit_count": ignored_stats.get("ignored_commit_count", 0),
         "ignored_bot_commit_count": ignored_stats.get("ignored_bot_commit_count", 0),
         "ignored_auto_commit_count": ignored_stats.get("ignored_auto_commit_count", 0),
+        "auto_report_commit_count": ignored_stats.get("auto_report_commit_count", 0),
         "contributor_count": len(contributors),
         "total_additions": sum(item.get("total_additions", 0) for item in contributors),
         "total_deletions": sum(item.get("total_deletions", 0) for item in contributors),

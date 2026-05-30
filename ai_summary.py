@@ -480,15 +480,20 @@ def tao_nhan_xet_ai_rule_based(ket_qua_phan_tich):
     contributors = ket_qua_phan_tich.get("contributors", [])
     overview = ket_qua_phan_tich.get("overview", {})
     ignored_count = overview.get("ignored_commit_count", 0)
+    auto_report_count = overview.get("auto_report_commit_count", 0)
     normalized_note = (
         "Hệ thống đã chuẩn hóa contributor theo GitHub login và author name/email "
         "để tránh tách sai cùng một người."
     )
-    ignored_note = (
-        "Hệ thống đã loại bỏ commit bot/tự động để kết quả đánh giá công bằng hơn."
-        if ignored_count > 0
-        else "Hệ thống đã kiểm tra và sẽ loại bỏ commit bot/tự động nếu phát hiện."
-    )
+    if ignored_count > 0:
+        ignored_note = "Hệ thống đã loại bỏ commit bot để kết quả đánh giá công bằng hơn."
+    else:
+        ignored_note = "Hệ thống đã kiểm tra và sẽ loại bỏ commit bot nếu phát hiện."
+    if auto_report_count > 0:
+        ignored_note += (
+            " Commit auto report của contributor thật được giữ lại trong phân tích "
+            "và có thể bị đánh dấu cần xem lại."
+        )
     data_handling_note = f"{normalized_note} {ignored_note}"
 
     if not contributors:

@@ -21,9 +21,9 @@
 - Nhập GitHub URL hoặc nhập riêng Owner/Repository.
 - Lấy commit từ GitHub API.
 - Chuẩn hóa contributor theo GitHub login, email hoặc tên author.
-- Lọc bot và commit tự động khỏi điểm chính.
+- Lọc commit bot khỏi điểm chính; commit auto report của contributor thật vẫn được phân tích và có thể bị đánh dấu cần xem lại.
 - Chấm điểm đóng góp theo thang hiển thị **1-10**.
-- Tính `quality_score`, `final_score`, `penalty_score`.
+- Tính `commit_score`, `code_volume_score`, `file_impact_score`, `quality_score`, `consistency_score`, `estimated_time_score`, `integration_score`, `penalty_score`, `final_score_100` và `display_score_10`.
 - Ước tính thời gian code từ lịch sử commit.
 - Phát hiện commit kém chất lượng hoặc commit cần xem lại.
 - Hiển thị bảng contributor và bảng commit cần xem lại.
@@ -68,9 +68,7 @@ Các thư mục/file runtime như `.env`, `.venv`, `.git`, `__pycache__`, `.idea
 
 Hệ thống giữ điểm nội bộ theo thang 0-100 để dễ tính toán, sau đó hiển thị điểm chính theo thang 1-10:
 
-```text
-display_score = round(score_100 / 10, 1)
-```
+Hệ thống không hardcode điểm hoặc ưu tiên tên contributor cụ thể. Điểm được tính từ dữ liệu commit, file thay đổi, message và thời gian commit.
 
 Công thức tổng hợp:
 
@@ -84,7 +82,8 @@ raw_score =
   + 0.10 * estimated_time_score
   + 0.10 * integration_score
 
-final_score = raw_score - penalty_score
+final_score_100 = clamp(raw_score - penalty_score, 0, 100)
+display_score_10 = round(final_score_100 / 10, 1)
 ```
 
 Ý nghĩa các thành phần:
@@ -92,11 +91,23 @@ final_score = raw_score - penalty_score
 - `commit_score`: đánh giá số commit bằng log scale để hạn chế spam commit.
 - `code_volume_score`: đánh giá số dòng thêm/xóa, có giới hạn để tránh sửa nhiều dòng rác được điểm quá cao.
 - `file_impact_score`: đánh giá mức độ ảnh hưởng của file sửa; core code cao hơn UI/config, tài liệu và file generated/local.
-- `quality_score`: đánh giá chất lượng commit message, mức độ thay đổi có ý nghĩa và tác động vào code.
+- `quality_score`: kết hợp `commit_message_score`, `meaningful_change_score` và tác động vào code.
 - `consistency_score`: đánh giá độ đều đóng góp theo ngày hoạt động và phiên làm việc.
 - `estimated_time_score`: điểm từ thời gian code ước tính, chỉ chiếm một phần nhỏ vì đây là chỉ số tham khảo.
 - `integration_score`: ghi nhận commit tích hợp hợp lệ như merge, resolve conflict, tích hợp dashboard/report/analyzer.
-- `penalty_score`: điểm trừ do commit message kém, commit quá nhỏ, file local/environment, report tự sinh hoặc tỷ lệ commit cần xem lại cao.
+- `penalty_score`: điểm trừ nội bộ 0-30 do commit message kém, commit quá nhỏ, file local/environment, report tự sinh hoặc tỷ lệ commit cần xem lại cao.
+
+Các nhóm tiêu chí chính:
+
+- Số lượng đóng góp: commit, additions, deletions, số file thay đổi.
+- Chất lượng commit: message rõ nghĩa, không quá ngắn, không chung chung.
+- Chất lượng thay đổi code: có sửa logic, hàm/class, xử lý lỗi, giao diện thật hoặc report generator.
+- Mức độ ảnh hưởng file: `.py`, `.ui`, `requirements.txt` được đánh giá cao hơn tài liệu; file local/generated như `.env`, `.idea/`, `__pycache__/`, `.venv/`, `reports/`, database bị điểm thấp hoặc bị trừ.
+- Độ đều đóng góp: số ngày có commit và số phiên làm việc.
+- Thời gian code ước tính: suy ra từ khoảng cách giữa các commit.
+- Vai trò tích hợp: merge pull request, resolve conflict, kết nối module hoặc cập nhật cấu trúc project.
+
+Commit cần xem lại được phát hiện bằng rule-based, ví dụ message `test`, `update`, `abc`, `ok`, `final`, `nop`, `nộp`, `demo`, `tmp`, `auto update report`, commit quá nhỏ, commit chỉ sửa report sinh ra hoặc file môi trường/local. Merge commit hợp lệ, documentation commit hữu ích, initial commit có nhiều file thật và fix commit có message rõ ràng không bị phạt nặng.
 
 Mức đánh giá theo điểm `/10`:
 
@@ -118,7 +129,15 @@ GitHub không lưu chính xác thời gian lập trình, vì vậy hệ thống 
 
 Chỉ số này dùng để tham khảo, không được xem là thời gian làm việc tuyệt đối.
 
-## 8. AI Nhận Xét
+## 8. Cách Đọc Điểm
+
+- `quality_score`: chất lượng nội dung đóng góp, tập trung vào commit message, ý nghĩa thay đổi và tác động vào code.
+- `display_score_10`: điểm cuối trên thang /10 sau khi cộng các tiêu chí và trừ penalty.
+- `penalty_score`: điểm trừ nội bộ 0-30, báo cáo sẽ hiển thị thêm dạng /10 để dễ đọc.
+- `estimated_coding_hours`: thời gian ước tính từ lịch sử commit, không phải số giờ làm việc tuyệt đối.
+- `suspicious_commit_count`: số commit cần xem lại vì message, loại file hoặc kích thước thay đổi có dấu hiệu kém chất lượng.
+
+## 9. AI Nhận Xét
 
 Module `ai_summary.py` tạo nhận xét rule-based bằng tiếng Việt, gồm:
 
@@ -135,7 +154,7 @@ Ví dụ nhận xét:
 ```text
 Thành viên đạt 8.4/10. Hệ thống ước tính có khoảng 4.5 giờ hoạt động code qua 3 phiên làm việc. Điểm mạnh là có nhiều thay đổi ở file code chính và commit tương đối đều. Tuy nhiên vẫn có 2 commit cần xem lại do message còn chung chung. Nên viết commit message cụ thể hơn và tránh commit chỉ sửa file tự động.
 ```
-## 8. Hướng Dẫn Build File `.exe`
+## 10. Hướng Dẫn Build File `.exe`
 
 Cài thư viện:
 
@@ -182,7 +201,7 @@ Icon ứng dụng và logo file exe nằm tại `assets/app_icon.ico`. Muốn đ
 
 Không đóng gói file `.env` vào exe; chỉ nhập cấu hình môi trường ở máy chạy ứng dụng.
 
-## 9. Hướng Phát Triển
+## 11. Hướng Phát Triển
 
 - Tích hợp AI API thật để sinh nhận xét tự nhiên hơn.
 - Phân tích Pull Request, Issue, Review và Comment.
