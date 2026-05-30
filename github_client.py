@@ -13,10 +13,7 @@ SO_COMMIT_TOI_DA_MOI_TRANG = 100
 GITHUB_API_ACCEPT = "application/vnd.github+json"
 GITHUB_USER_AGENT = "GitHub-Contribution-AI"
 
-CONTRIBUTOR_ALIASES = {
-    "le van cuong": "cuonghuhuu",
-    "cuonghuhuu": "cuonghuhuu",
-}
+CONTRIBUTOR_ALIASES_ENV = "CONTRIBUTOR_ALIASES"
 BOT_CONTRIBUTORS = {
     "actions-user",
     "github-actions[bot]",
@@ -141,14 +138,32 @@ def _normalize_identity_text(value):
     return value.strip()
 
 
+def _parse_contributor_aliases(raw_value):
+    aliases = {}
+    for item in re.split(r"[;,]", raw_value or ""):
+        if "=" not in item:
+            continue
+        alias, canonical = item.split("=", 1)
+        alias = _normalize_identity_text(alias)
+        canonical = _normalize_identity_text(canonical)
+        if alias and canonical:
+            aliases[alias] = canonical
+    return aliases
+
+
+def _lay_contributor_aliases():
+    return _parse_contributor_aliases(os.getenv(CONTRIBUTOR_ALIASES_ENV, ""))
+
+
 def _identity_candidates(value):
     normalized = _normalize_identity_text(value)
     if not normalized:
         return set()
 
+    contributor_aliases = _lay_contributor_aliases()
     candidates = {normalized}
-    if normalized in CONTRIBUTOR_ALIASES:
-        candidates.add(CONTRIBUTOR_ALIASES[normalized])
+    if normalized in contributor_aliases:
+        candidates.add(contributor_aliases[normalized])
 
     if "@" in normalized:
         local_part = normalized.split("@", 1)[0]
@@ -168,20 +183,22 @@ def _la_github_login_hop_le(login):
 
 
 def _canonicalize_identity(value):
+    contributor_aliases = _lay_contributor_aliases()
     candidates = _identity_candidates(value)
     for candidate in candidates:
-        if candidate in CONTRIBUTOR_ALIASES:
-            return CONTRIBUTOR_ALIASES[candidate]
+        if candidate in contributor_aliases:
+            return contributor_aliases[candidate]
 
     normalized = _normalize_identity_text(value)
-    return CONTRIBUTOR_ALIASES.get(normalized, normalized)
+    return contributor_aliases.get(normalized, normalized)
 
 
 def _lay_alias_da_biet(*values):
+    contributor_aliases = _lay_contributor_aliases()
     for value in values:
         for candidate in _identity_candidates(value):
-            if candidate in CONTRIBUTOR_ALIASES:
-                return CONTRIBUTOR_ALIASES[candidate]
+            if candidate in contributor_aliases:
+                return contributor_aliases[candidate]
     return ""
 
 
