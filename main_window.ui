@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>GitHub AI Contributor Analyzer</string>
+   <string>Đánh giá đóng góp GitHub bằng AI</string>
   </property>
   <widget class="QWidget" name="centralwidget">
    <layout class="QVBoxLayout" name="mainLayout">
@@ -36,7 +36,7 @@
        <item row="0" column="0">
         <widget class="QLabel" name="repoUrlLabel">
          <property name="text">
-          <string>GitHub URL</string>
+          <string>Đường dẫn GitHub</string>
          </property>
         </widget>
        </item>
@@ -50,7 +50,7 @@
        <item row="1" column="0">
         <widget class="QLabel" name="ownerLabel">
          <property name="text">
-          <string>Owner</string>
+          <string>Chủ sở hữu</string>
          </property>
         </widget>
        </item>
@@ -64,7 +64,7 @@
        <item row="1" column="2">
         <widget class="QLabel" name="repoLabel">
          <property name="text">
-          <string>Repository</string>
+          <string>Kho GitHub</string>
          </property>
         </widget>
        </item>
@@ -105,7 +105,7 @@
        <item row="2" column="1" colspan="5">
         <widget class="QLineEdit" name="tokenInput">
          <property name="placeholderText">
-          <string>Không bắt buộc với repo public; dùng token để tăng giới hạn API</string>
+          <string>Không bắt buộc với kho công khai; dùng token để tăng giới hạn gọi API</string>
          </property>
         </widget>
        </item>
@@ -175,7 +175,7 @@
        <item row="0" column="0">
         <widget class="QLabel" name="repoTitleLabel">
          <property name="text">
-          <string>Repository</string>
+          <string>Kho GitHub</string>
          </property>
         </widget>
        </item>
@@ -192,7 +192,7 @@
        <item row="1" column="0">
         <widget class="QLabel" name="totalCommitsTitleLabel">
          <property name="text">
-          <string>Tổng commit</string>
+          <string>Tổng số commit</string>
          </property>
         </widget>
        </item>
@@ -209,7 +209,7 @@
        <item row="1" column="2">
         <widget class="QLabel" name="totalContributorsTitleLabel">
          <property name="text">
-          <string>Tổng contributor</string>
+          <string>Tổng thành viên</string>
          </property>
         </widget>
        </item>
@@ -243,7 +243,7 @@
        <item row="2" column="0">
         <widget class="QLabel" name="totalAdditionsTitleLabel">
          <property name="text">
-          <string>Tổng additions</string>
+          <string>Tổng dòng thêm</string>
          </property>
         </widget>
        </item>
@@ -260,7 +260,7 @@
        <item row="2" column="2">
         <widget class="QLabel" name="totalDeletionsTitleLabel">
          <property name="text">
-          <string>Tổng deletions</string>
+          <string>Tổng dòng xoá</string>
          </property>
         </widget>
        </item>
@@ -277,7 +277,7 @@
        <item row="2" column="4">
         <widget class="QLabel" name="suspiciousCommitTitleLabel">
          <property name="text">
-          <string>Commit kém chất lượng</string>
+          <string>Commit cần xem lại</string>
          </property>
         </widget>
        </item>
@@ -301,11 +301,30 @@
       </property>
       <widget class="QGroupBox" name="contributorGroupBox">
        <property name="title">
-        <string>Bảng contributor</string>
+        <string>Bảng thành viên đóng góp</string>
        </property>
        <layout class="QVBoxLayout" name="contributorLayout">
         <item>
          <widget class="QTableWidget" name="contributorTable"/>
+        </item>
+        <item>
+         <widget class="QLabel" name="explanationLabel">
+          <property name="styleSheet">
+           <string notr="true">color: #444; line-height: 1.3;</string>
+          </property>
+          <property name="text">
+           <string>Giải thích:
+- Số commit: số lần thành viên đẩy thay đổi lên GitHub.
+- Dòng thêm/xoá: số dòng code được thêm hoặc xoá.
+- Điểm chất lượng: đánh giá mức độ rõ ràng và ý nghĩa của commit/code.
+- Điểm trừ: điểm bị trừ do commit quá ngắn, commit tự động, commit kém chất lượng.
+- Điểm cuối: điểm tổng hợp sau khi xét cả số lượng và chất lượng đóng góp.
+- Commit cần xem lại: commit có dấu hiệu chưa rõ ràng như test, update, auto report.</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
         </item>
        </layout>
       </widget>
@@ -314,7 +333,7 @@
         <item>
          <widget class="QGroupBox" name="chartGroupBox">
           <property name="title">
-           <string>Biểu đồ chất lượng</string>
+           <string>Biểu đồ đánh giá</string>
           </property>
           <layout class="QVBoxLayout" name="chartContainerLayout"/>
          </widget>
@@ -322,7 +341,7 @@
         <item>
          <widget class="QGroupBox" name="aiGroupBox">
           <property name="title">
-           <string>Nhận xét AI rule-based</string>
+           <string>Nhận xét tự động</string>
           </property>
           <layout class="QVBoxLayout" name="aiLayout">
            <item>

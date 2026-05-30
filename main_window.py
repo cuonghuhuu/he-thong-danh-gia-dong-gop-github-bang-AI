@@ -84,13 +84,19 @@ class MainWindow(QMainWindow):
         self.contributorTable.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.contributorTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.contributorTable.setWordWrap(True)
-        self.contributorTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.contributorTable.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.contributorTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.contributorTable.horizontalHeader().setStretchLastSection(True)
+        self.contributorTable.horizontalHeader().setMinimumSectionSize(80)
         self.contributorTable.verticalHeader().setVisible(False)
 
         if hasattr(self, "historyTable"):
             self.historyTable.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
             self.historyTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-            self.historyTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+            self.historyTable.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            self.historyTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+            self.historyTable.horizontalHeader().setStretchLastSection(True)
+            self.historyTable.horizontalHeader().setMinimumSectionSize(80)
             self.historyTable.verticalHeader().setVisible(False)
 
         self.aiTextEdit.setReadOnly(True)
@@ -228,14 +234,14 @@ class MainWindow(QMainWindow):
 
     def hien_thi_bang_contributor(self, contributors):
         headers = [
-            "Contributor",
-            "Commit",
-            "Additions",
-            "Deletions",
-            "Files",
-            "Quality Score",
-            "Penalty",
-            "Final Score",
+            "Thành viên",
+            "Số commit",
+            "Dòng thêm",
+            "Dòng xoá",
+            "File đã sửa",
+            "Điểm chất lượng",
+            "Điểm trừ",
+            "Điểm cuối",
             "Mức đánh giá",
             "Nhận xét ngắn",
         ]
@@ -264,10 +270,27 @@ class MainWindow(QMainWindow):
                 self.contributorTable.setItem(row, col, table_item)
 
         self.contributorTable.resizeRowsToContents()
+        self._dat_do_rong_cot_contributor()
+
+    def _dat_do_rong_cot_contributor(self):
+        column_widths = {
+            0: 150,
+            1: 95,
+            2: 100,
+            3: 100,
+            4: 105,
+            5: 135,
+            6: 95,
+            7: 105,
+            8: 120,
+            9: 260,
+        }
+        for column, width in column_widths.items():
+            self.contributorTable.setColumnWidth(column, width)
 
     def _kiem_tra_co_ket_qua(self):
         if not self.current_result:
-            QMessageBox.information(self, "Chưa có dữ liệu", "Hãy phân tích repository trước.")
+            QMessageBox.information(self, "Chưa có dữ liệu", "Hãy phân tích kho GitHub trước.")
             return False
         return True
 
@@ -328,14 +351,14 @@ class MainWindow(QMainWindow):
         headers = [
             "ID",
             "Thời gian",
-            "Owner",
-            "Repo",
-            "Commit",
-            "Contributor",
-            "Top contributor",
+            "Chủ sở hữu",
+            "Kho GitHub",
+            "Số commit",
+            "Thành viên",
+            "Thành viên nổi bật",
             "Tổng điểm",
-            "Additions",
-            "Deletions",
+            "Dòng thêm",
+            "Dòng xoá",
         ]
         self.historyTable.setColumnCount(len(headers))
         self.historyTable.setHorizontalHeaderLabels(headers)
@@ -361,3 +384,16 @@ class MainWindow(QMainWindow):
                 self.historyTable.setItem(row_index, col, table_item)
 
         self.historyTable.resizeRowsToContents()
+        for column, width in {
+            0: 60,
+            1: 150,
+            2: 110,
+            3: 130,
+            4: 95,
+            5: 95,
+            6: 150,
+            7: 100,
+            8: 100,
+            9: 100,
+        }.items():
+            self.historyTable.setColumnWidth(column, width)
