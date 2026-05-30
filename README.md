@@ -134,57 +134,7 @@ Ví dụ nhận xét:
 ```text
 Thành viên đạt 8.4/10. Hệ thống ước tính có khoảng 4.5 giờ hoạt động code qua 3 phiên làm việc. Điểm mạnh là có nhiều thay đổi ở file code chính và commit tương đối đều. Tuy nhiên vẫn có 2 commit cần xem lại do message còn chung chung. Nên viết commit message cụ thể hơn và tránh commit chỉ sửa file tự động.
 ```
-
-## 9. Hướng Dẫn Cài Đặt Và Chạy Bằng Python
-
-Cài thư viện:
-
-```bash
-pip install -r requirements.txt
-```
-
-Chạy giao diện:
-
-```bash
-python app.py
-```
-
-Chạy CLI:
-
-```bash
-python app.py --cli
-```
-
-Repo public có thể chạy không cần token. Nếu GitHub API bị giới hạn request, hãy thêm token cá nhân vào `.env` hoặc nhập token trực tiếp trong giao diện.
-
-## 10. Cấu Hình `.env`
-
-Tạo file `.env` từ `.env.example`:
-
-```bash
-copy .env.example .env
-```
-
-Ví dụ nội dung:
-
-```env
-GITHUB_TOKEN=your_github_token_here
-GITHUB_REPO_URL=https://github.com/owner/repo
-REPO_OWNER=owner
-REPO_NAME=repo
-SO_LUONG_COMMIT=50
-AI_API_KEY=
-```
-
-Lưu ý:
-
-- `GITHUB_TOKEN` không bắt buộc với repository public.
-- Repository private cần token GitHub có quyền phù hợp.
-- Không hardcode token hoặc API key trong source code.
-- Không commit file `.env` lên GitHub.
-- File `.env` thật không được đóng gói vào `.exe`.
-
-## 11. Hướng Dẫn Build File `.exe`
+## 8. Hướng Dẫn Build File `.exe`
 
 Cài thư viện:
 
@@ -218,70 +168,7 @@ dist/GitHub Contribution AI/GitHub Contribution AI.exe
 
 Trong project này, `main_window.ui` được load qua hàm `resource_path()` để chạy đúng cả khi chạy source và khi đóng gói bằng PyInstaller. Thư mục `reports/` được tự tạo khi ứng dụng chạy nếu chưa tồn tại.
 
-## 12. Cách Gửi App Cho Người Khác Dùng
-
-Khi gửi cho người khác, hãy gửi cả thư mục:
-
-```text
-dist/GitHub Contribution AI/
-```
-
-Không chỉ gửi riêng file `.exe`, vì bản build dạng one-folder có thể cần các file/thư viện phụ trong cùng thư mục.
-
-Người nhận mở:
-
-```text
-GitHub Contribution AI.exe
-```
-
-Nếu cần phân tích repository private, người nhận có thể nhập GitHub token trực tiếp trong giao diện hoặc tạo file `.env` riêng đặt cạnh file `.exe`. Không gửi token thật kèm source code hoặc bản nộp.
-
-## 13. Lưu Ý Khi Dùng Bản `.exe`
-
-- Repo public thường không cần token.
-- Nếu bị giới hạn GitHub API, hãy dùng GitHub token cá nhân.
-- Không để token trong source code.
-- Không đóng gói file `.env` thật vào exe.
-- Nếu không xuất được PDF/CSV/Markdown, kiểm tra quyền ghi thư mục `reports/`.
-- Báo cáo được sinh trong thư mục `reports/` cạnh file `.exe` khi chạy bản build.
-
-## 14. Kiểm Thử Gợi Ý
-
-Chạy kiểm tra cú pháp:
-
-```bash
-python -m py_compile app.py github_client.py analyzer.py ai_summary.py main_window.py chart_widget.py report_generator.py
-```
-
-Chạy app:
-
-```bash
-python app.py
-```
-
-Test repository:
-
-```text
-https://github.com/cuonghuhuu/he-thong-danh-gia-dong-gop-github-bang-AI
-```
-
-Số commit gợi ý:
-
-```text
-50
-```
-
-Kết quả mong muốn:
-
-- App mở được trên Windows.
-- Phân tích repo public không bắt buộc token.
-- Có bảng contributor.
-- Có biểu đồ.
-- Có bảng commit cần xem lại.
-- Xuất được Markdown/CSV/PDF.
-- Điểm hiển thị theo thang `/10`.
-
-## 15. Hướng Phát Triển
+## 9. Hướng Phát Triển
 
 - Tích hợp AI API thật để sinh nhận xét tự nhiên hơn.
 - Phân tích Pull Request, Issue, Review và Comment.
