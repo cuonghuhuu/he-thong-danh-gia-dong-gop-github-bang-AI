@@ -13,8 +13,19 @@ SO_COMMIT_TOI_DA_MOI_TRANG = 100
 GITHUB_API_ACCEPT = "application/vnd.github+json"
 GITHUB_USER_AGENT = "GitHub-Contribution-AI"
 
-# Khong cau hinh alias contributor mac dinh de tranh uu tien rieng bat ky thanh vien nao.
-CONTRIBUTOR_ALIASES = {}
+CONTRIBUTOR_ALIASES = {
+    "le van cuong": "cuonghuhuu",
+    "levancuong": "cuonghuhuu",
+    "van cuong": "cuonghuhuu",
+    "cuong": "cuonghuhuu",
+    "cuonghuhuu": "cuonghuhuu",
+    "ngoc linh": "ngoclinh205",
+    "ngoclinh205": "ngoclinh205",
+    "ngoc anh": "ngocanh1798",
+    "ngocanh1798": "ngocanh1798",
+    "dinh phuong binh": "dinhphuongbinh",
+    "dinhphuongbinh": "dinhphuongbinh",
+}
 BOT_CONTRIBUTORS = {
     "actions-user",
     "github-actions[bot]",
@@ -141,6 +152,7 @@ def _lay_list_an_toan(value):
 
 def _normalize_identity_text(value):
     value = (value or "").strip().lower()
+    value = value.replace("đ", "d")
     value = unicodedata.normalize("NFD", value)
     value = "".join(ch for ch in value if unicodedata.category(ch) != "Mn")
     value = re.sub(r"[^a-z0-9_./@+\-\[\] ]+", " ", value)
@@ -154,12 +166,20 @@ def _identity_candidates(value):
         return set()
 
     candidates = {normalized}
+    compact = re.sub(r"[\s._-]+", "", normalized)
+    if compact:
+        candidates.add(compact)
     if normalized in CONTRIBUTOR_ALIASES:
         candidates.add(CONTRIBUTOR_ALIASES[normalized])
+    if compact in CONTRIBUTOR_ALIASES:
+        candidates.add(CONTRIBUTOR_ALIASES[compact])
 
     if "@" in normalized:
         local_part = normalized.split("@", 1)[0]
         candidates.add(local_part)
+        compact_local_part = re.sub(r"[\s._-]+", "", local_part)
+        if compact_local_part:
+            candidates.add(compact_local_part)
         if "+" in local_part:
             candidates.add(local_part.rsplit("+", 1)[-1])
 
@@ -186,10 +206,16 @@ def _canonicalize_identity(value):
 
 def normalize_contributor_name(name, email=None, login=None):
     """Chuan hoa khoa contributor tu GitHub login, email hoac ten author."""
-    if _la_github_login_hop_le(login):
+    if _la_github_login_hop_le(login) and not _la_bot_identity(login):
         return _canonicalize_identity(login)
+    if name:
+        name_key = _canonicalize_identity(name)
+        if name_key in CONTRIBUTOR_ALIASES.values():
+            return name_key
     if email:
-        return _canonicalize_identity(email)
+        email_key = _canonicalize_identity(email)
+        if email_key:
+            return email_key
     if name:
         return _canonicalize_identity(name)
     return "khong xac dinh"
