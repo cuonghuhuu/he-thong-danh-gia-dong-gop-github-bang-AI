@@ -52,12 +52,17 @@ def tao_bang_markdown(contributors):
         "Additions",
         "Deletions",
         "Files",
+        "Integration commits",
+        "Core code commits",
+        "Documentation commits",
+        "Review/Merge score",
         "Quality score",
         "Penalty",
         "Suspicious commits",
         "Suspicious ratio",
         "Final score",
         "Mức đánh giá",
+        "Nhận xét vai trò",
         "Nhận xét",
     ]
     lines = [
@@ -73,12 +78,17 @@ def tao_bang_markdown(contributors):
             str(item.get("total_additions", 0)),
             str(item.get("total_deletions", 0)),
             str(item.get("files_changed", item.get("changed_files_count", 0))),
+            str(item.get("integration_commit_count", 0)),
+            str(item.get("core_code_commit_count", 0)),
+            str(item.get("documentation_commit_count", 0)),
+            f"{item.get('review_or_merge_activity_score', 0):.2f}",
             f"{item.get('quality_score', 0):.2f}",
             f"{item.get('penalty_score', 0):.2f}",
             str(item.get("suspicious_commit_count", 0)),
             f"{item.get('suspicious_commit_ratio', 0) * 100:.1f}%",
             f"{_lay_score(item):.2f}",
             str(item.get("contribution_level", "")),
+            str(item.get("leader_contribution_note", "")),
             str(item.get("short_summary", item.get("ai_summary", ""))),
         ]
         lines.append("| " + " | ".join(_markdown_cell(value) for value in row) + " |")
@@ -160,6 +170,9 @@ def tao_bao_cao_markdown(ket_qua_phan_tich, tong_ket_repo=None):
         f"- Tổng additions: {overview.get('total_additions', 0)}",
         f"- Tổng deletions: {overview.get('total_deletions', 0)}",
         f"- Điểm chất lượng trung bình: {overview.get('average_quality_score', 0):.2f}",
+        f"- Integration commits: {overview.get('integration_commit_count', 0)}",
+        f"- Core code commits: {overview.get('core_code_commit_count', 0)}",
+        f"- Documentation commits: {overview.get('documentation_commit_count', 0)}",
         f"- Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
         f"- Số commit bot đã loại: {overview.get('ignored_bot_commit_count', 0)}",
         f"- Số commit tự động đã loại: {overview.get('ignored_auto_commit_count', 0)}",
@@ -168,11 +181,12 @@ def tao_bao_cao_markdown(ket_qua_phan_tich, tong_ket_repo=None):
         "## Công thức điểm",
         "",
         "```text",
-        "final_score = 0.20 * commit_score",
-        "            + 0.20 * code_volume_score",
-        "            + 0.20 * file_impact_score",
-        "            + 0.25 * quality_score",
-        "            + 0.15 * consistency_score",
+        "final_score = 0.18 * commit_score",
+        "            + 0.18 * code_volume_score",
+        "            + 0.18 * file_impact_score",
+        "            + 0.24 * quality_score",
+        "            + 0.12 * consistency_score",
+        "            + 0.10 * review_or_merge_activity_score",
         "            - penalty_score",
         "```",
         "",
@@ -211,6 +225,9 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
                 "Additions",
                 "Deletions",
                 "Files",
+                "Integration commit count",
+                "Core code commit count",
+                "Documentation commit count",
                 "Commit score",
                 "Code volume score",
                 "File impact score",
@@ -219,12 +236,14 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
                 "Code impact score",
                 "Quality score",
                 "Consistency score",
+                "Review or merge activity score",
                 "Penalty score",
                 "Suspicious commit count",
                 "Suspicious commit ratio",
                 "Final score",
                 "Mức đánh giá",
                 "Nhãn phụ",
+                "Nhận xét vai trò",
                 "Nhận xét AI",
                 "Commit đáng nghi",
             ]
@@ -239,6 +258,9 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
                     item.get("total_additions", 0),
                     item.get("total_deletions", 0),
                     item.get("files_changed", item.get("changed_files_count", 0)),
+                    item.get("integration_commit_count", 0),
+                    item.get("core_code_commit_count", 0),
+                    item.get("documentation_commit_count", 0),
                     f"{item.get('commit_score', 0):.2f}",
                     f"{item.get('code_volume_score', 0):.2f}",
                     f"{item.get('file_impact_score', 0):.2f}",
@@ -247,12 +269,14 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
                     f"{item.get('code_impact_score', 0):.2f}",
                     f"{item.get('quality_score', 0):.2f}",
                     f"{item.get('consistency_score', 0):.2f}",
+                    f"{item.get('review_or_merge_activity_score', 0):.2f}",
                     f"{item.get('penalty_score', 0):.2f}",
                     item.get("suspicious_commit_count", 0),
                     f"{item.get('suspicious_commit_ratio', 0) * 100:.1f}%",
                     f"{_lay_score(item):.2f}",
                     item.get("contribution_level", ""),
                     item.get("contribution_type", ""),
+                    item.get("leader_contribution_note", ""),
                     item.get("ai_summary", ""),
                     _tom_tat_commit_dang_nghi(item),
                 ]
@@ -315,6 +339,9 @@ def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
             f"Repository: {overview.get('repo_full_name', '')}",
             f"Số commit đã phân tích: {overview.get('analyzed_commit_count', 0)}",
             f"Điểm chất lượng trung bình: {overview.get('average_quality_score', 0):.2f}",
+            f"Integration commits: {overview.get('integration_commit_count', 0)}",
+            f"Core code commits: {overview.get('core_code_commit_count', 0)}",
+            f"Documentation commits: {overview.get('documentation_commit_count', 0)}",
             f"Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
             f"Số commit bot đã loại: {overview.get('ignored_bot_commit_count', 0)}",
             f"Số commit tự động đã loại: {overview.get('ignored_auto_commit_count', 0)}",
@@ -325,8 +352,14 @@ def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
             lines.append(
                 f"- {item.get('contributor', '')}: final={_lay_score(item):.2f}, "
                 f"quality={item.get('quality_score', 0):.2f}, "
-                f"suspicious={item.get('suspicious_commit_count', 0)}"
+                f"integration={item.get('integration_commit_count', 0)}, "
+                f"core={item.get('core_code_commit_count', 0)}, "
+                f"docs={item.get('documentation_commit_count', 0)}, "
+                f"suspicious={item.get('suspicious_commit_count', 0)}, "
+                f"penalty={item.get('penalty_score', 0):.2f}"
             )
+            if item.get("leader_contribution_note"):
+                lines.append(f"  Vai trò: {item.get('leader_contribution_note', '')}")
 
         ax.text(0.04, 0.96, "\n".join(lines), va="top", ha="left", fontsize=10, wrap=True)
         pdf.savefig(fig, bbox_inches="tight")
@@ -374,6 +407,9 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
         f"Tổng additions: {overview.get('total_additions', 0)}",
         f"Tổng deletions: {overview.get('total_deletions', 0)}",
         f"Điểm chất lượng trung bình: {overview.get('average_quality_score', 0):.2f}",
+        f"Integration commits: {overview.get('integration_commit_count', 0)}",
+        f"Core code commits: {overview.get('core_code_commit_count', 0)}",
+        f"Documentation commits: {overview.get('documentation_commit_count', 0)}",
         f"Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
         f"Số commit bot đã loại: {overview.get('ignored_bot_commit_count', 0)}",
         f"Số commit tự động đã loại: {overview.get('ignored_auto_commit_count', 0)}",
@@ -391,6 +427,9 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
         "Add",
         "Del",
         "Files",
+        "Integr.",
+        "Core",
+        "Docs",
         "Quality",
         "Penalty",
         "Suspicious",
@@ -406,6 +445,9 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
                 item.get("total_additions", 0),
                 item.get("total_deletions", 0),
                 item.get("files_changed", item.get("changed_files_count", 0)),
+                item.get("integration_commit_count", 0),
+                item.get("core_code_commit_count", 0),
+                item.get("documentation_commit_count", 0),
                 f"{item.get('quality_score', 0):.2f}",
                 f"{item.get('penalty_score', 0):.2f}",
                 item.get("suspicious_commit_count", 0),
@@ -423,11 +465,14 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
             1.4 * cm,
             1.4 * cm,
             1.2 * cm,
-            1.6 * cm,
+            1.0 * cm,
+            1.0 * cm,
+            1.0 * cm,
             1.4 * cm,
-            1.6 * cm,
+            1.2 * cm,
             1.4 * cm,
-            4.0 * cm,
+            1.3 * cm,
+            3.4 * cm,
         ],
         repeatRows=1,
     )
@@ -441,12 +486,24 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
                 ("FONTNAME", (0, 1), (-1, -1), font_regular),
                 ("FONTSIZE", (0, 0), (-1, -1), 8),
                 ("ALIGN", (0, 0), (0, -1), "CENTER"),
-                ("ALIGN", (2, 1), (9, -1), "RIGHT"),
+                ("ALIGN", (2, 1), (12, -1), "RIGHT"),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ]
         )
     )
     elements.append(table)
+
+    elements.append(Spacer(1, 0.35 * cm))
+    elements.append(Paragraph("Nhận xét vai trò contributor", styles["Heading2"]))
+    for item in contributors:
+        text = (
+            f"{item.get('contributor', '')}: "
+            f"integration={item.get('integration_commit_count', 0)}, "
+            f"core={item.get('core_code_commit_count', 0)}, "
+            f"documentation={item.get('documentation_commit_count', 0)}. "
+            f"{item.get('leader_contribution_note', '')}"
+        )
+        elements.append(_paragraph(text, styles["Normal"]))
 
     elements.append(Spacer(1, 0.35 * cm))
     elements.append(Paragraph("Commit cần xem lại", styles["Heading2"]))
