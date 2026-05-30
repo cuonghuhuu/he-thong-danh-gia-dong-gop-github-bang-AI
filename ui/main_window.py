@@ -1,6 +1,4 @@
 import os
-import sys
-from pathlib import Path
 
 from PyQt6 import uic
 from PyQt6.QtCore import QObject, Qt, QThread, pyqtSignal
@@ -13,31 +11,16 @@ from PyQt6.QtWidgets import (
     QTableWidgetItem,
 )
 
-from analyzer import phan_tich_repo
-from chart_widget import ChartWidget
-from github_client import chuan_hoa_owner_repo
-from report_generator import (
+from core.analyzer import phan_tich_repo
+from exporters.report_generator import (
     xuat_csv as export_csv_report,
     xuat_markdown as export_markdown_report,
     xuat_pdf as export_pdf_report,
 )
-
-
-BASE_DIR = Path(__file__).resolve().parent
-
-
-def resource_path(relative_path):
-    """Lay file tai nguyen dung duoc ca khi chay source va khi dong goi exe."""
-    if hasattr(sys, "_MEIPASS"):
-        return Path(sys._MEIPASS) / relative_path
-    return BASE_DIR / relative_path
-
-
-def app_base_dir():
-    """Thu muc ghi du lieu runtime: source khi dev, thu muc chua exe khi build."""
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
-    return BASE_DIR
+from services.github_client import chuan_hoa_owner_repo
+from ui.chart_widget import ChartWidget
+from utils.constants import MAIN_WINDOW_UI_PATH
+from utils.path_utils import ensure_reports_dir, resource_path
 
 
 def _diem_hien_thi(score_100):
@@ -126,13 +109,12 @@ class AnalysisWorker(QObject):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        uic.loadUi(resource_path("main_window.ui"), self)
+        uic.loadUi(resource_path(MAIN_WINDOW_UI_PATH), self)
 
         self.current_result = None
         self.worker_thread = None
         self.worker = None
-        self.reports_dir = app_base_dir() / "reports"
-        self.reports_dir.mkdir(parents=True, exist_ok=True)
+        self.reports_dir = ensure_reports_dir()
 
         self.chart_widget = ChartWidget(self)
         self.chartContainerLayout.addWidget(self.chart_widget)

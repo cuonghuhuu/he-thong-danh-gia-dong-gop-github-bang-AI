@@ -595,6 +595,85 @@ def lay_chi_tiet_commit(owner, repo, sha, token=None):
     return _tao_commit_day_du(du_lieu)
 
 
+def _tao_metadata_commit(commit):
+    return {
+        "sha": commit.get("sha"),
+        "khoa_contributor": commit.get("khoa_contributor", "Khong xac dinh"),
+        "ten_hien_thi": commit.get("ten_hien_thi", "Khong xac dinh"),
+        "github_login": commit.get("github_login", ""),
+        "author_login": commit.get("author_login", commit.get("github_login", "")),
+        "author_name": commit.get("author_name", ""),
+        "author_email": commit.get("author_email", ""),
+        "committer_login": commit.get("committer_login", ""),
+        "committer_name": commit.get("committer_name", ""),
+        "committer_email": commit.get("committer_email", ""),
+        "message": commit.get("message", ""),
+        "commit_date": commit.get("commit_date", ""),
+        "is_bot": bool(commit.get("is_bot", False)),
+        "is_auto_commit": bool(commit.get("is_auto_commit", False)),
+        "is_ignored": bool(commit.get("is_ignored", False)),
+        "ignored_reasons": commit.get("ignored_reasons", []),
+    }
+
+
+def _cap_nhat_metadata_tu_chi_tiet(metadata, chi_tiet):
+    metadata.update(
+        {
+            "khoa_contributor": chi_tiet.get(
+                "khoa_contributor", metadata["khoa_contributor"]
+            ),
+            "ten_hien_thi": chi_tiet.get("ten_hien_thi", metadata["ten_hien_thi"]),
+            "github_login": chi_tiet.get("github_login", metadata["github_login"]),
+            "author_login": chi_tiet.get("author_login", metadata["author_login"]),
+            "author_name": chi_tiet.get("author_name", metadata["author_name"]),
+            "author_email": chi_tiet.get("author_email", metadata["author_email"]),
+            "committer_login": chi_tiet.get(
+                "committer_login", metadata["committer_login"]
+            ),
+            "committer_name": chi_tiet.get(
+                "committer_name", metadata["committer_name"]
+            ),
+            "committer_email": chi_tiet.get(
+                "committer_email", metadata["committer_email"]
+            ),
+            "message": chi_tiet.get("message", metadata["message"]),
+            "commit_date": chi_tiet.get("commit_date", metadata["commit_date"]),
+            "is_bot": bool(chi_tiet.get("is_bot", metadata["is_bot"])),
+            "is_auto_commit": bool(
+                chi_tiet.get("is_auto_commit", metadata["is_auto_commit"])
+            ),
+            "is_ignored": bool(chi_tiet.get("is_ignored", metadata["is_ignored"])),
+            "ignored_reasons": chi_tiet.get(
+                "ignored_reasons", metadata["ignored_reasons"]
+            ),
+        }
+    )
+    return metadata
+
+
+def _tao_commit_bo_qua(metadata):
+    return {
+        **metadata,
+        "additions": 0,
+        "deletions": 0,
+        "commit_date": metadata.get("commit_date", ""),
+        "changed_files": [],
+        "files_detail": [],
+    }
+
+
+def _tao_commit_tu_chi_tiet(metadata, chi_tiet):
+    return {
+        **metadata,
+        "additions": chi_tiet.get("additions", 0),
+        "deletions": chi_tiet.get("deletions", 0),
+        "commit_date": chi_tiet.get("commit_date", metadata["commit_date"]),
+        "changed_files": chi_tiet.get("changed_files", []),
+        "changed_files_count": chi_tiet.get("changed_files_count", 0),
+        "files_detail": chi_tiet.get("files_detail", []),
+    }
+
+
 def lay_danh_sach_commit_chi_tiet(
     owner,
     repo,
@@ -612,84 +691,18 @@ def lay_danh_sach_commit_chi_tiet(
         if not sha:
             continue
 
-        metadata = {
-            "sha": sha,
-            "khoa_contributor": commit.get("khoa_contributor", "Khong xac dinh"),
-            "ten_hien_thi": commit.get("ten_hien_thi", "Khong xac dinh"),
-            "github_login": commit.get("github_login", ""),
-            "author_login": commit.get("author_login", commit.get("github_login", "")),
-            "author_name": commit.get("author_name", ""),
-            "author_email": commit.get("author_email", ""),
-            "committer_login": commit.get("committer_login", ""),
-            "committer_name": commit.get("committer_name", ""),
-            "committer_email": commit.get("committer_email", ""),
-            "message": commit.get("message", ""),
-            "commit_date": commit.get("commit_date", ""),
-            "is_bot": bool(commit.get("is_bot", False)),
-            "is_auto_commit": bool(commit.get("is_auto_commit", False)),
-            "is_ignored": bool(commit.get("is_ignored", False)),
-            "ignored_reasons": commit.get("ignored_reasons", []),
-        }
+        metadata = _tao_metadata_commit(commit)
 
         if metadata["is_ignored"]:
-            ket_qua.append(
-                {
-                    **metadata,
-                    "additions": 0,
-                    "deletions": 0,
-                    "commit_date": metadata.get("commit_date", ""),
-                    "changed_files": [],
-                    "files_detail": [],
-                }
-            )
+            ket_qua.append(_tao_commit_bo_qua(metadata))
             continue
 
         if progress_callback:
             progress_callback(f"Dang lay chi tiet commit {index}/{tong_commit}...")
 
         chi_tiet = lay_chi_tiet_commit(owner, repo, sha, token=token)
-        metadata.update(
-            {
-                "khoa_contributor": chi_tiet.get(
-                    "khoa_contributor", metadata["khoa_contributor"]
-                ),
-                "ten_hien_thi": chi_tiet.get("ten_hien_thi", metadata["ten_hien_thi"]),
-                "github_login": chi_tiet.get("github_login", metadata["github_login"]),
-                "author_login": chi_tiet.get("author_login", metadata["author_login"]),
-                "author_name": chi_tiet.get("author_name", metadata["author_name"]),
-                "author_email": chi_tiet.get("author_email", metadata["author_email"]),
-                "committer_login": chi_tiet.get(
-                    "committer_login", metadata["committer_login"]
-                ),
-                "committer_name": chi_tiet.get(
-                    "committer_name", metadata["committer_name"]
-                ),
-                "committer_email": chi_tiet.get(
-                    "committer_email", metadata["committer_email"]
-                ),
-                "message": chi_tiet.get("message", metadata["message"]),
-                "commit_date": chi_tiet.get("commit_date", metadata["commit_date"]),
-                "is_bot": bool(chi_tiet.get("is_bot", metadata["is_bot"])),
-                "is_auto_commit": bool(
-                    chi_tiet.get("is_auto_commit", metadata["is_auto_commit"])
-                ),
-                "is_ignored": bool(chi_tiet.get("is_ignored", metadata["is_ignored"])),
-                "ignored_reasons": chi_tiet.get(
-                    "ignored_reasons", metadata["ignored_reasons"]
-                ),
-            }
-        )
-        ket_qua.append(
-            {
-                **metadata,
-                "additions": chi_tiet.get("additions", 0),
-                "deletions": chi_tiet.get("deletions", 0),
-                "commit_date": chi_tiet.get("commit_date", metadata["commit_date"]),
-                "changed_files": chi_tiet.get("changed_files", []),
-                "changed_files_count": chi_tiet.get("changed_files_count", 0),
-                "files_detail": chi_tiet.get("files_detail", []),
-            }
-        )
+        metadata = _cap_nhat_metadata_tu_chi_tiet(metadata, chi_tiet)
+        ket_qua.append(_tao_commit_tu_chi_tiet(metadata, chi_tiet))
 
         time.sleep(0.03)
 

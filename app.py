@@ -1,23 +1,18 @@
 import os
 import sys
-from pathlib import Path
 
 from dotenv import load_dotenv
 
-from analyzer import phan_tich_repo
-from github_client import chuan_hoa_owner_repo
-from report_generator import tao_bao_cao_markdown
-
-
-DEFAULT_SO_LUONG_COMMIT = 30
-TEN_FILE_BAO_CAO_CI = "report.md"
-
-
-def app_base_dir():
-    """Thu muc chay app: source khi dev, thu muc chua exe khi dong goi."""
-    if getattr(sys, "frozen", False):
-        return Path(sys.executable).resolve().parent
-    return Path(__file__).resolve().parent
+from core.analyzer import phan_tich_repo
+from exporters.report_generator import tao_bao_cao_markdown
+from services.github_client import chuan_hoa_owner_repo
+from utils.constants import (
+    APP_ICON_PATH,
+    APP_NAME,
+    CLI_REPORT_FILE_NAME,
+    DEFAULT_SO_LUONG_COMMIT,
+)
+from utils.path_utils import app_base_dir, resource_path
 
 
 def lay_so_luong_commit_tu_env():
@@ -58,7 +53,7 @@ def chay_cli():
 
     noi_dung_bao_cao = tao_bao_cao_markdown(ket_qua)
 
-    report_path = app_base_dir() / TEN_FILE_BAO_CAO_CI
+    report_path = app_base_dir() / CLI_REPORT_FILE_NAME
     report_path.write_text(noi_dung_bao_cao, encoding="utf-8")
     print(f"Da tao file {report_path}")
 
@@ -67,12 +62,12 @@ def chay_gui():
     from PyQt6.QtGui import QIcon
     from PyQt6.QtWidgets import QApplication
 
-    from main_window import MainWindow, resource_path
+    from ui.main_window import MainWindow
 
     app = QApplication(sys.argv)
-    app.setApplicationName("GitHub AI Contributor Analyzer")
+    app.setApplicationName(APP_NAME)
 
-    icon_path = resource_path("assets/app_icon.ico")
+    icon_path = resource_path(APP_ICON_PATH)
     app.setWindowIcon(QIcon(str(icon_path)))
 
     window = MainWindow()

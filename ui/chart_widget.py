@@ -3,24 +3,25 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 
 
+def _to_float(value, default=0.0):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def _score_display(item, display_key, raw_key, fallback_key=None):
     if display_key in item and item.get(display_key) is not None:
-        return float(item.get(display_key, 0))
+        return _to_float(item.get(display_key))
     raw_value = item.get(raw_key, item.get(fallback_key, 0)) if fallback_key else item.get(raw_key, 0)
-    try:
-        raw_value = float(raw_value)
-    except (TypeError, ValueError):
-        raw_value = 0.0
+    raw_value = _to_float(raw_value)
     return round(max(raw_value, 0.0) / 10, 1)
 
 
 def _penalty_display(item):
     if "penalty_score_display" in item and item.get("penalty_score_display") is not None:
-        return float(item.get("penalty_score_display", 0))
-    try:
-        penalty = float(item.get("penalty_score", 0))
-    except (TypeError, ValueError):
-        penalty = 0.0
+        return _to_float(item.get("penalty_score_display"))
+    penalty = _to_float(item.get("penalty_score", 0))
     return round(max(0.0, min(30.0, penalty)) / 30.0 * 10, 1)
 
 
@@ -40,6 +41,27 @@ def _style_axis(ax, title, ylabel=None):
         ax.set_ylabel(ylabel, fontsize=9)
     ax.tick_params(axis="x", rotation=25, labelsize=9)
     ax.tick_params(axis="y", labelsize=9)
+
+
+def _collect_chart_data(contributors, limit=10):
+    data = contributors[:limit]
+    names = [_short_label(item.get("contributor", item.get("tac_gia", ""))) for item in data]
+    return {
+        "names": names,
+        "final_scores": [
+            max(_score_display(item, "final_score_display", "final_score", "score"), 0)
+            for item in data
+        ],
+        "quality_scores": [
+            _score_display(item, "quality_score_display", "quality_score") for item in data
+        ],
+        "suspicious_counts": [item.get("suspicious_commit_count", 0) for item in data],
+        "additions": [item.get("total_additions", item.get("additions", 0)) for item in data],
+        "deletions": [item.get("total_deletions", item.get("deletions", 0)) for item in data],
+        "penalty_scores": [_penalty_display(item) for item in data],
+        "estimated_hours": [item.get("estimated_coding_hours", 0) for item in data],
+        "active_days": [item.get("active_days", 0) for item in data],
+    }
 
 
 class ChartWidget(QWidget):
@@ -71,21 +93,16 @@ class ChartWidget(QWidget):
             self.canvas.draw()
             return
 
-        data = contributors[:10]
-        names = [_short_label(item.get("contributor", item.get("tac_gia", ""))) for item in data]
-        final_scores = [
-            max(_score_display(item, "final_score_display", "final_score", "score"), 0)
-            for item in data
-        ]
-        quality_scores = [
-            _score_display(item, "quality_score_display", "quality_score") for item in data
-        ]
-        suspicious_counts = [item.get("suspicious_commit_count", 0) for item in data]
-        additions = [item.get("total_additions", item.get("additions", 0)) for item in data]
-        deletions = [item.get("total_deletions", item.get("deletions", 0)) for item in data]
-        penalty_scores = [_penalty_display(item) for item in data]
-        estimated_hours = [item.get("estimated_coding_hours", 0) for item in data]
-        active_days = [item.get("active_days", 0) for item in data]
+        chart_data = _collect_chart_data(contributors)
+        names = chart_data["names"]
+        final_scores = chart_data["final_scores"]
+        quality_scores = chart_data["quality_scores"]
+        suspicious_counts = chart_data["suspicious_counts"]
+        additions = chart_data["additions"]
+        deletions = chart_data["deletions"]
+        penalty_scores = chart_data["penalty_scores"]
+        estimated_hours = chart_data["estimated_hours"]
+        active_days = chart_data["active_days"]
 
         grid = self.figure.add_gridspec(
             2,
