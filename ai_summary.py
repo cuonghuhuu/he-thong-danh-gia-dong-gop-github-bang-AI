@@ -75,8 +75,14 @@ def _mo_ta_chat_luong(item):
 def _tao_diem_manh(item):
     strengths = []
 
+    if item.get("integration_commit_count", 0) >= 2:
+        strengths.append("có hoạt động tích hợp hệ thống rõ ràng")
     if item.get("source_file_count", 0) > item.get("document_file_count", 0):
         strengths.append("có tác động vào file source code chính")
+    if item.get("core_code_commit_count", 0) > 0:
+        strengths.append("có commit liên quan đến code lõi")
+    if item.get("documentation_commit_count", 0) > 0:
+        strengths.append("có đóng góp tài liệu/hướng dẫn")
     if item.get("commit_message_score", 0) >= 75:
         strengths.append("commit message tương đối rõ ràng")
     if item.get("meaningful_change_score", 0) >= 70:
@@ -102,6 +108,26 @@ def _tao_han_che(item):
         weaknesses.append("có thay đổi file môi trường hoặc file tự động sinh")
 
     return "; ".join(weaknesses) if weaknesses else "chưa thấy hạn chế lớn từ các rule hiện tại"
+
+
+def tao_ghi_chu_vai_tro_leader(item):
+    integration_count = item.get("integration_commit_count", 0)
+    core_count = item.get("core_code_commit_count", 0)
+    documentation_count = item.get("documentation_commit_count", 0)
+    review_or_merge_score = item.get("review_or_merge_activity_score", 0)
+
+    if integration_count >= 2:
+        return (
+            f"Có {integration_count} commit tích hợp hợp lệ, "
+            f"{core_count} commit code lõi và {documentation_count} commit tài liệu; "
+            f"điểm hoạt động merge/review là {review_or_merge_score:.1f}."
+        )
+    if integration_count == 1:
+        return (
+            f"Có 1 commit tích hợp hợp lệ; nên tiếp tục tách rõ các commit merge, sửa lỗi "
+            f"và tài liệu để thể hiện vai trò điều phối tốt hơn."
+        )
+    return "Chưa thấy nhiều dữ liệu commit tích hợp; vai trò trưởng nhóm chưa thể kết luận từ lịch sử commit."
 
 
 def _tao_commit_can_xem_lai(item):
@@ -138,6 +164,7 @@ def tao_noi_dung_nhan_xet(item):
         [
             f"Mức độ tham gia: {_mo_ta_muc_do_tham_gia(item)}.",
             f"Chất lượng đóng góp: {_mo_ta_chat_luong(item)}.",
+            f"Vai trò tích hợp: {item.get('leader_contribution_note', tao_ghi_chu_vai_tro_leader(item))}",
             f"Điểm mạnh: {_tao_diem_manh(item)}.",
             f"Điểm hạn chế: {_tao_han_che(item)}.",
             f"Commit cần xem lại: {_tao_commit_can_xem_lai(item)}.",
@@ -172,6 +199,7 @@ def tao_nhan_xet_don_gian(danh_sach_xep_hang):
 
         thong_tin_moi["contribution_level"] = contribution_level
         thong_tin_moi["contribution_type"] = contribution_type
+        thong_tin_moi["leader_contribution_note"] = tao_ghi_chu_vai_tro_leader(thong_tin_moi)
         thong_tin_moi["ai_summary"] = tao_noi_dung_nhan_xet(thong_tin_moi)
         thong_tin_moi["short_summary"] = tao_nhan_xet_ngan(thong_tin_moi)
         ket_qua.append(thong_tin_moi)

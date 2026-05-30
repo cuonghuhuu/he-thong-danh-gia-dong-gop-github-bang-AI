@@ -757,6 +757,8 @@ def tinh_chi_so_contributor(du_lieu_gom):
         document_changes = 0
         generated_changes = 0
         integration_commit_count = 0
+        documentation_commit_count = 0
+        core_code_commit_count = 0
 
         for commit in danh_sach_commit:
             tong_additions += commit.get("additions", 0)
@@ -779,6 +781,10 @@ def tinh_chi_so_contributor(du_lieu_gom):
             generated_changes += quality_item.get("generated_changes", 0)
             if quality_item.get("is_valid_integration_commit"):
                 integration_commit_count += 1
+            if quality_item.get("document_file_count", 0) > 0:
+                documentation_commit_count += 1
+            if quality_item.get("source_file_count", 0) > 0:
+                core_code_commit_count += 1
 
             if quality_item.get("is_suspicious"):
                 suspicious_commits.append(
@@ -825,6 +831,8 @@ def tinh_chi_so_contributor(du_lieu_gom):
                 "document_changes": document_changes,
                 "generated_changes": generated_changes,
                 "integration_commit_count": integration_commit_count,
+                "documentation_commit_count": documentation_commit_count,
+                "core_code_commit_count": core_code_commit_count,
                 "file_impact_raw": file_impact_raw,
                 "commit_quality_items": quality_items,
                 "suspicious_commits": suspicious_commits,
@@ -887,12 +895,26 @@ def _tinh_consistency_score(item):
     return _clamp(spread_score + count_bonus + quality_bonus)
 
 
+def _tinh_review_or_merge_activity_score(item):
+    integration_count = item.get("integration_commit_count", 0)
+    commit_count = item.get("commit_count", 0)
+    if integration_count <= 0 or commit_count <= 0:
+        return 0.0
+
+    integration_ratio = integration_count / commit_count
+    merge_volume_score = min(70.0, integration_count * 24.0)
+    ratio_bonus = min(15.0, integration_ratio * 35.0)
+    quality_bonus = min(15.0, item.get("quality_score", 0) * 0.15)
+    return _clamp(merge_volume_score + ratio_bonus + quality_bonus)
+
+
 def tinh_diem_dong_gop_co_ban(danh_sach_thong_ke):
     """
     Tinh diem dong gop theo cong thuc moi:
-    final_score = 0.20 commit_score + 0.20 code_volume_score
-                + 0.20 file_impact_score + 0.25 quality_score
-                + 0.15 consistency_score - penalty_score
+    final_score = 0.18 commit_score + 0.18 code_volume_score
+                + 0.18 file_impact_score + 0.24 quality_score
+                + 0.12 consistency_score + 0.10 review_or_merge_activity_score
+                - penalty_score
     """
     commit_scores = _normalize_log_max(
         [item.get("commit_count", 0) for item in danh_sach_thong_ke]
@@ -913,14 +935,16 @@ def tinh_diem_dong_gop_co_ban(danh_sach_thong_ke):
         file_impact_score = file_impact_scores[index]
         quality_score = item.get("quality_score", 0)
         consistency_score = _tinh_consistency_score(item)
+        review_or_merge_activity_score = _tinh_review_or_merge_activity_score(item)
         penalty_score = item.get("penalty_score", 0)
 
         final_score = (
-            0.20 * commit_score
-            + 0.20 * code_volume_score
-            + 0.20 * file_impact_score
-            + 0.25 * quality_score
-            + 0.15 * consistency_score
+            0.18 * commit_score
+            + 0.18 * code_volume_score
+            + 0.18 * file_impact_score
+            + 0.24 * quality_score
+            + 0.12 * consistency_score
+            + 0.10 * review_or_merge_activity_score
             - penalty_score
         )
         final_score = _clamp(final_score)
@@ -934,6 +958,7 @@ def tinh_diem_dong_gop_co_ban(danh_sach_thong_ke):
                 "file_impact_score": file_impact_score,
                 "file_score": file_impact_score,
                 "consistency_score": consistency_score,
+                "review_or_merge_activity_score": review_or_merge_activity_score,
                 "final_score": final_score,
                 "score": final_score,
                 "baseline_score": final_score,
@@ -973,6 +998,15 @@ def tao_overview(
     suspicious_commit_count = sum(
         item.get("suspicious_commit_count", 0) for item in contributors
     )
+    integration_commit_count = sum(
+        item.get("integration_commit_count", 0) for item in contributors
+    )
+    documentation_commit_count = sum(
+        item.get("documentation_commit_count", 0) for item in contributors
+    )
+    core_code_commit_count = sum(
+        item.get("core_code_commit_count", 0) for item in contributors
+    )
 
     return {
         "owner": owner,
@@ -991,6 +1025,9 @@ def tao_overview(
         "total_score": tong_diem,
         "average_quality_score": average_quality_score,
         "suspicious_commit_count": suspicious_commit_count,
+        "integration_commit_count": integration_commit_count,
+        "documentation_commit_count": documentation_commit_count,
+        "core_code_commit_count": core_code_commit_count,
         "analyzed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
 
