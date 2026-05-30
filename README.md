@@ -1,154 +1,77 @@
-# Hệ thống đánh giá đóng góp GitHub bằng Python và AI
+# Xây dựng hệ thống phân tích và đánh giá mức độ đóng góp của thành viên trong dự án GitHub sử dụng Python và AI
 
-Đề tài: **Xây dựng hệ thống phân tích và đánh giá mức độ đóng góp của thành viên trong dự án GitHub sử dụng Python và AI**.
+## 1. Giới Thiệu
 
-Ứng dụng dùng Python, PyQt6 và GitHub API để phân tích contributor trong một repository. Phiên bản hiện tại không chỉ chấm theo số commit hoặc số dòng code, mà bổ sung rule-based AI để đánh giá chất lượng commit, tác động vào source code và phát hiện commit kém chất lượng.
+Đây là ứng dụng desktop dùng Python, PyQt6 và GitHub REST API để phân tích mức độ đóng góp của các thành viên trong một repository GitHub. Hệ thống lấy dữ liệu commit, chuẩn hóa contributor, đánh giá chất lượng đóng góp, phát hiện commit cần xem lại và hiển thị kết quả trên dashboard trực quan.
 
-## Chức năng chính
+Ứng dụng sử dụng **rule-based AI** để tạo nhận xét tiếng Việt. Phiên bản hiện tại chưa bắt buộc dùng AI API thật, nhờ đó có thể chạy ổn định trong môi trường học tập, demo và nộp bài.
 
-- Nhập repository bằng GitHub URL hoặc Owner/Repository.
-- Lấy commit từ GitHub API, bao gồm additions, deletions, file thay đổi và patch/diff khi GitHub cung cấp.
-- Gom dữ liệu theo contributor, có chuẩn hoá identity bằng GitHub login hoặc email/name để tránh tách một người thành nhiều contributor khi GitHub cung cấp đủ thông tin.
-- Bỏ qua bot và commit tự động như `actions-user`, `github-actions[bot]`, `dependabot[bot]`, `auto update report`, `automatic report`, `generated report`.
-- Tính điểm nội bộ 0-100 nhưng hiển thị điểm đánh giá chính theo thang /10 để dễ đọc hơn.
-- Ước tính thời gian code từ khoảng cách giữa các commit, số ngày hoạt động và số phiên làm việc.
-- Phát hiện commit đáng nghi như `test`, `update`, `abc`, `ok`, `nộp`, `final`, `backup`, `tmp`, `demo`.
-- Chấm chất lượng code theo loại file thay đổi: source code, tài liệu/báo cáo, file tự động sinh hoặc file môi trường local.
-- Sinh nhận xét AI rule-based bằng tiếng Việt.
-- Hiển thị dashboard 1 trang với bảng contributor, bảng commit cần xem lại và nhiều biểu đồ đánh giá.
+## 2. Mục Tiêu
+
+- Hỗ trợ nhóm đánh giá đóng góp của từng thành viên trong dự án GitHub.
+- Không chỉ dựa vào số commit hoặc số dòng code.
+- Kết hợp chất lượng commit, chất lượng code, loại file sửa, độ đều đóng góp và điểm trừ.
+- Có nhận xét AI rule-based dễ hiểu bằng tiếng Việt.
+- Có dashboard trực quan gồm bảng, biểu đồ và danh sách commit cần xem lại.
 - Xuất báo cáo Markdown, CSV và PDF.
-- Bỏ phần lịch sử phân tích trên giao diện để tập trung vào đánh giá chất lượng đóng góp.
+- Có thể đóng gói thành file `.exe` để người dùng Windows chạy mà không cần mở PyCharm.
 
-## Công nghệ sử dụng
+## 3. Chức Năng Chính
 
-- Python 3.11+
+- Nhập GitHub URL hoặc nhập riêng Owner/Repository.
+- Lấy commit từ GitHub API.
+- Chuẩn hóa contributor theo GitHub login, email hoặc tên author.
+- Lọc bot và commit tự động khỏi điểm chính.
+- Chấm điểm đóng góp theo thang hiển thị **1-10**.
+- Tính `quality_score`, `final_score`, `penalty_score`.
+- Ước tính thời gian code từ lịch sử commit.
+- Phát hiện commit kém chất lượng hoặc commit cần xem lại.
+- Hiển thị bảng contributor và bảng commit cần xem lại.
+- Hiển thị nhiều biểu đồ: điểm cuối, điểm chất lượng, commit cần xem lại, dòng thêm/xóa, điểm trừ, giờ code ước tính, số ngày hoạt động.
+- Xuất báo cáo Markdown/CSV/PDF vào thư mục `reports/`.
+
+## 4. Công Nghệ Sử Dụng
+
+- Python
 - PyQt6
+- GitHub REST API
 - requests
 - python-dotenv
-- matplotlib
-- reportlab
-- GitHub REST API
+- Matplotlib
+- ReportLab
+- SQLite nếu dùng lại phần lưu trữ cũ
+- PyInstaller
+- Rule-based AI
 
-## Cấu trúc project
+## 5. Cấu Trúc Thư Mục
 
 ```text
 .
-├── app.py
-├── github_client.py
-├── analyzer.py
-├── ai_summary.py
-├── main_window.py
-├── main_window.ui
-├── chart_widget.py
-├── db_manager.py
-├── report_generator.py
-├── requirements.txt
-├── README.md
-├── report.md
-└── reports/
+├── app.py                 # Entry point chính, chạy GUI hoặc CLI
+├── github_client.py       # Gọi GitHub API, chuẩn hóa commit/contributor
+├── analyzer.py            # Thuật toán phân tích và chấm điểm đóng góp
+├── ai_summary.py          # Sinh nhận xét rule-based AI bằng tiếng Việt
+├── main_window.py         # Logic giao diện PyQt6
+├── main_window.ui         # Layout giao diện Qt Designer
+├── chart_widget.py        # Biểu đồ Matplotlib trong dashboard
+├── report_generator.py    # Xuất báo cáo Markdown/CSV/PDF
+├── requirements.txt       # Danh sách thư viện cần cài
+├── build_exe.bat          # Script build file exe trên Windows
+├── .env.example           # Mẫu cấu hình môi trường
+└── README.md              # Tài liệu hướng dẫn
 ```
 
-## Cài đặt
+Các thư mục/file runtime như `.env`, `.venv`, `.git`, `__pycache__`, `.idea`, `build/`, `dist/`, database local và `reports/` không nên đưa vào bản nộp source hoặc bản build.
 
-```bash
-pip install -r requirements.txt
+## 6. Thuật Toán Đánh Giá
+
+Hệ thống giữ điểm nội bộ theo thang 0-100 để dễ tính toán, sau đó hiển thị điểm chính theo thang 1-10:
+
+```text
+display_score = round(score_100 / 10, 1)
 ```
 
-## Cấu hình `.env`
-
-Tạo file `.env` từ `.env.example` nếu muốn cấu hình sẵn:
-
-```env
-GITHUB_TOKEN=
-GITHUB_REPO_URL=https://github.com/owner/repo
-REPO_OWNER=owner
-REPO_NAME=repo
-SO_LUONG_COMMIT=30
-AI_API_KEY=
-```
-
-Ghi chú:
-
-- `GITHUB_TOKEN` không bắt buộc với repo public.
-- Nếu không có token, GitHub giới hạn request thấp hơn.
-- Không hardcode token hoặc AI API key trong code.
-- Không commit file `.env`, `.venv`, database SQLite local hoặc báo cáo sinh tự động.
-
-## Chạy chương trình
-
-Chạy giao diện:
-
-```bash
-python app.py
-```
-
-Chạy CLI:
-
-```bash
-python app.py --cli
-```
-
-Ví dụ test:
-
-- GitHub URL: `https://github.com/cuonghuhuu/he-thong-danh-gia-dong-gop-github-bang-AI`
-- Số commit: `30`
-
-## Dashboard
-
-Giao diện chính gồm:
-
-- Vùng nhập GitHub URL, Owner, Repository, Token và số commit.
-- Nút phân tích và các nút xuất báo cáo Markdown/CSV/PDF.
-- Thẻ tổng quan: tổng commit, contributor, additions, deletions, tổng giờ code ước tính, số phiên làm việc, điểm chất lượng trung bình, số commit cần xem lại.
-- Bảng contributor: số commit, additions, deletions, files, giờ code ước tính, số ngày hoạt động, điểm chất lượng /10, điểm thời gian /10, điểm cuối /10, điểm trừ, mức đánh giá, số commit cần xem lại và nhận xét ngắn.
-- Bảng `Commit kém chất lượng / Commit cần xem lại`: contributor, SHA, message, lý do bị đánh dấu và mức độ nghi ngờ.
-- Biểu đồ: tỷ lệ điểm cuối, điểm chất lượng, số commit cần xem lại, so sánh dòng thêm/xoá, điểm trừ, giờ code ước tính và số ngày hoạt động.
-- Khung nhận xét AI rule-based.
-
-## Tiêu chí đánh giá chất lượng
-
-Trước khi tính điểm, hệ thống chuẩn hoá contributor theo thứ tự ưu tiên:
-
-- GitHub login nếu commit có liên kết với tài khoản GitHub hợp lệ.
-- Email hoặc tên author nếu không có login.
-- Alias mapping chỉ dùng để gộp đúng danh tính khi cùng một người có nhiều tên/email khác nhau; alias không được dùng để cộng điểm riêng.
-
-Các commit từ bot hoặc commit sinh báo cáo tự động bị loại khỏi điểm chính. Kết quả vẫn ghi lại:
-
-- `ignored_bot_commit_count`: số commit bot đã loại.
-- `ignored_auto_commit_count`: số commit tự động đã loại.
-- `ignored_commits`: danh sách commit bot/tự động đã loại, gồm sha ngắn, contributor, message và lý do loại.
-
-Bot bị loại gồm `actions-user`, `github-actions[bot]`, `dependabot[bot]`. Commit tự động bị loại nếu message chứa `auto update report`, `automatic report` hoặc `generated report`.
-
-Hệ thống bổ sung các chỉ số:
-
-- `commit_message_score`: chất lượng commit message.
-- `meaningful_change_score`: mức độ có ý nghĩa của thay đổi.
-- `code_impact_score`: tác động vào file source code chính.
-- `quality_score`: điểm chất lượng tổng hợp nội bộ 0-100.
-- `quality_score_display`: điểm chất lượng hiển thị theo thang /10.
-- `estimated_coding_hours`: thời gian code ước tính từ lịch sử commit.
-- `active_days`: số ngày có commit được tính điểm.
-- `coding_sessions`: số phiên làm việc, gom theo khoảng cách commit tối đa 2 giờ.
-- `estimated_time_score`: điểm thời gian nội bộ 0-100, dùng log scale và có giới hạn.
-- `consistency_score`: điểm độ đều đóng góp theo ngày hoạt động và phiên làm việc.
-- `integration_score`: điểm ghi nhận vai trò tích hợp hợp lệ, không gắn với tên contributor.
-- `suspicious_commit_count`: số commit cần xem lại.
-- `suspicious_commit_ratio`: tỷ lệ commit cần xem lại.
-- `penalty_score`: điểm phạt nội bộ do commit kém chất lượng.
-- `penalty_score_display`: điểm trừ hiển thị theo thang 0-10, chuẩn hóa từ penalty nội bộ tối đa 30 điểm.
-
-Rule chính:
-
-- Commit message rõ ràng, mô tả công việc cụ thể thì điểm cao.
-- Message quá chung như `test`, `update`, `abc`, `ok`, `nộp`, `final`, `tmp`, `demo` bị trừ điểm.
-- Chữ `fix` không bị coi là xấu tuyệt đối. Ví dụ `Fix GitHub token handling` vẫn là message tốt vì có ngữ cảnh rõ.
-- Commit sửa `.py`, `.ui`, `requirements.txt` được xem là có tác động kỹ thuật cao hơn.
-- Commit chỉ sửa `README.md`, `report.md`, `reports/` được xem là thiên về tài liệu/báo cáo.
-- Commit sửa `.idea/`, `__pycache__/`, `.env`, database SQLite hoặc file môi trường local bị trừ điểm.
-
-## Công thức điểm mới
+Công thức tổng hợp:
 
 ```text
 raw_score =
@@ -163,39 +86,18 @@ raw_score =
 final_score = raw_score - penalty_score
 ```
 
-Ý nghĩa:
+Ý nghĩa các thành phần:
 
-- `commit_score`: số commit, dùng log để hạn chế spam commit.
-- `code_volume_score`: additions + deletions, có giới hạn để tránh sửa nhiều dòng rác được điểm quá cao.
-- `file_impact_score`: core code > UI/config > tài liệu > file generated/local.
-- `quality_score`: chất lượng message, ý nghĩa thay đổi và tác động code.
-- `consistency_score`: mức độ đóng góp đều theo ngày hoạt động và phiên làm việc.
-- `estimated_time_score`: điểm thời gian code ước tính, dùng log scale và cap để tránh tính quá mức.
-- `integration_score`: ghi nhận merge, resolve conflict, tích hợp dashboard/report/analyzer hoặc cấu trúc dự án nếu commit có nội dung thật.
-- `penalty_score`: điểm trừ do commit đáng nghi hoặc file không nên tính cao.
+- `commit_score`: đánh giá số commit bằng log scale để hạn chế spam commit.
+- `code_volume_score`: đánh giá số dòng thêm/xóa, có giới hạn để tránh sửa nhiều dòng rác được điểm quá cao.
+- `file_impact_score`: đánh giá mức độ ảnh hưởng của file sửa; core code cao hơn UI/config, tài liệu và file generated/local.
+- `quality_score`: đánh giá chất lượng commit message, mức độ thay đổi có ý nghĩa và tác động vào code.
+- `consistency_score`: đánh giá độ đều đóng góp theo ngày hoạt động và phiên làm việc.
+- `estimated_time_score`: điểm từ thời gian code ước tính, chỉ chiếm một phần nhỏ vì đây là chỉ số tham khảo.
+- `integration_score`: ghi nhận commit tích hợp hợp lệ như merge, resolve conflict, tích hợp dashboard/report/analyzer.
+- `penalty_score`: điểm trừ do commit message kém, commit quá nhỏ, file local/environment, report tự sinh hoặc tỷ lệ commit cần xem lại cao.
 
-Điểm cuối nội bộ được chuẩn hóa trong khoảng 0-100. Giao diện và báo cáo hiển thị `final_score_display = round(final_score / 10, 1)` theo thang /10.
-
-## Ước tính thời gian code
-
-GitHub không lưu chính xác thời gian lập trình, nên hệ thống chỉ ước tính từ `commit_date`:
-
-- Commit của từng contributor được sắp xếp theo thời gian tăng dần.
-- Các commit cách nhau tối đa 2 giờ được gom vào cùng một phiên làm việc.
-- Commit đầu tiên của mỗi phiên được tính mặc định 30 phút.
-- Khoảng cách giữa 2 commit trong cùng phiên được cộng vào thời gian, nhưng mỗi khoảng tối đa 120 phút.
-- Mỗi phiên làm việc tối đa 6 giờ để tránh tính nhầm qua đêm.
-- Một commit đơn lẻ tương đương khoảng 0.5 giờ hoạt động.
-
-Đây là chỉ số tham khảo, không phải thời gian làm việc tuyệt đối. Vì vậy `estimated_time_score` chỉ chiếm 10% công thức điểm.
-
-## Cách đọc điểm
-
-- `quality_score`: tập trung vào chất lượng commit/code, gồm commit message, file code chính, mức độ thay đổi có ý nghĩa và commit cần xem lại.
-- `final_score`: điểm tổng hợp sau khi xét số commit, dòng code, loại file, chất lượng, độ đều đóng góp, thời gian ước tính, tích hợp và điểm trừ.
-- Một contributor có thể có `final_score` cao hơn `quality_score` nếu có nhiều đóng góp đều, tác động file tốt và thời gian code ước tính hợp lý, nhưng vẫn có một số commit cần xem lại.
-
-## Mức đánh giá contributor
+Mức đánh giá theo điểm `/10`:
 
 - `>= 8.5`: Đóng góp chất lượng cao
 - `7.0 - 8.4`: Đóng góp tốt
@@ -203,29 +105,187 @@ GitHub không lưu chính xác thời gian lập trình, nên hệ thống chỉ
 - `3.0 - 4.9`: Đóng góp thấp
 - `< 3.0`: Cần cải thiện
 
-Nhãn phụ có thể gồm:
+## 7. Ước Tính Thời Gian Code
 
-- Contributor chất lượng
-- Contributor tích cực nhưng cần cải thiện chất lượng
-- Contributor ít đóng góp
-- Contributor có nhiều commit kém chất lượng
-- Contributor thiên về tài liệu/báo cáo
-- Contributor thiên về code chính
+GitHub không lưu chính xác thời gian lập trình, vì vậy hệ thống chỉ ước tính từ thời gian commit:
 
-## Báo cáo
+- Sắp xếp commit của từng contributor theo `commit_date`.
+- Commit cách nhau tối đa 2 giờ được gom vào cùng một phiên làm việc.
+- Commit đầu tiên của mỗi phiên được tính mặc định 30 phút.
+- Khoảng cách giữa hai commit trong cùng phiên được cộng vào thời gian, nhưng mỗi khoảng tối đa 120 phút.
+- Mỗi phiên làm việc tối đa 6 giờ để tránh tính nhầm qua đêm.
 
-Báo cáo Markdown/CSV/PDF có:
+Chỉ số này dùng để tham khảo, không được xem là thời gian làm việc tuyệt đối.
 
-- Bảng contributor.
-- Điểm chất lượng /10, điểm trừ /10, điểm cuối /10, `suspicious_commit_count`, `suspicious_commit_ratio`.
-- Mức đánh giá và nhận xét AI.
-- Bảng commit cần xem lại kèm SHA, message, lý do bị đánh dấu và mức độ nghi ngờ.
-- Thống kê hỗ trợ biểu đồ: điểm cuối, điểm chất lượng, commit cần xem lại, dòng thêm/xoá và điểm trừ.
-- Mục `Commit bot/tự động đã loại` để kiểm tra lại các commit không được đưa vào điểm chính.
+## 8. AI Nhận Xét
 
-## Hướng phát triển
+Module `ai_summary.py` tạo nhận xét rule-based bằng tiếng Việt, gồm:
 
-- Kết nối AI API thật qua `AI_API_KEY`.
-- Phân tích thêm pull request, issue, review và comment.
-- Tính chất lượng test và mức độ review code.
-- So sánh đóng góp theo từng giai đoạn thời gian.
+- Mức độ tham gia.
+- Chất lượng đóng góp.
+- Thời gian code ước tính.
+- Điểm mạnh.
+- Điểm hạn chế.
+- Commit cần xem lại.
+- Gợi ý cải thiện.
+
+Ví dụ nhận xét:
+
+```text
+Thành viên đạt 8.4/10. Hệ thống ước tính có khoảng 4.5 giờ hoạt động code qua 3 phiên làm việc. Điểm mạnh là có nhiều thay đổi ở file code chính và commit tương đối đều. Tuy nhiên vẫn có 2 commit cần xem lại do message còn chung chung. Nên viết commit message cụ thể hơn và tránh commit chỉ sửa file tự động.
+```
+
+## 9. Hướng Dẫn Cài Đặt Và Chạy Bằng Python
+
+Cài thư viện:
+
+```bash
+pip install -r requirements.txt
+```
+
+Chạy giao diện:
+
+```bash
+python app.py
+```
+
+Chạy CLI:
+
+```bash
+python app.py --cli
+```
+
+Repo public có thể chạy không cần token. Nếu GitHub API bị giới hạn request, hãy thêm token cá nhân vào `.env` hoặc nhập token trực tiếp trong giao diện.
+
+## 10. Cấu Hình `.env`
+
+Tạo file `.env` từ `.env.example`:
+
+```bash
+copy .env.example .env
+```
+
+Ví dụ nội dung:
+
+```env
+GITHUB_TOKEN=your_github_token_here
+GITHUB_REPO_URL=https://github.com/owner/repo
+REPO_OWNER=owner
+REPO_NAME=repo
+SO_LUONG_COMMIT=50
+AI_API_KEY=
+```
+
+Lưu ý:
+
+- `GITHUB_TOKEN` không bắt buộc với repository public.
+- Repository private cần token GitHub có quyền phù hợp.
+- Không hardcode token hoặc API key trong source code.
+- Không commit file `.env` lên GitHub.
+- File `.env` thật không được đóng gói vào `.exe`.
+
+## 11. Hướng Dẫn Build File `.exe`
+
+Cài thư viện:
+
+```bash
+pip install -r requirements.txt
+```
+
+Hoặc nếu muốn cài PyInstaller riêng:
+
+```bash
+pip install pyinstaller
+```
+
+Build nhanh bằng script:
+
+```bash
+build_exe.bat
+```
+
+Lệnh thủ công tương đương:
+
+```bash
+pyinstaller --noconfirm --clean --windowed --name "GitHub Contribution AI" --add-data "main_window.ui;." --hidden-import "matplotlib.backends.backend_qtagg" app.py
+```
+
+Sau khi build, file exe nằm tại:
+
+```text
+dist/GitHub Contribution AI/GitHub Contribution AI.exe
+```
+
+Trong project này, `main_window.ui` được load qua hàm `resource_path()` để chạy đúng cả khi chạy source và khi đóng gói bằng PyInstaller. Thư mục `reports/` được tự tạo khi ứng dụng chạy nếu chưa tồn tại.
+
+## 12. Cách Gửi App Cho Người Khác Dùng
+
+Khi gửi cho người khác, hãy gửi cả thư mục:
+
+```text
+dist/GitHub Contribution AI/
+```
+
+Không chỉ gửi riêng file `.exe`, vì bản build dạng one-folder có thể cần các file/thư viện phụ trong cùng thư mục.
+
+Người nhận mở:
+
+```text
+GitHub Contribution AI.exe
+```
+
+Nếu cần phân tích repository private, người nhận có thể nhập GitHub token trực tiếp trong giao diện hoặc tạo file `.env` riêng đặt cạnh file `.exe`. Không gửi token thật kèm source code hoặc bản nộp.
+
+## 13. Lưu Ý Khi Dùng Bản `.exe`
+
+- Repo public thường không cần token.
+- Nếu bị giới hạn GitHub API, hãy dùng GitHub token cá nhân.
+- Không để token trong source code.
+- Không đóng gói file `.env` thật vào exe.
+- Nếu không xuất được PDF/CSV/Markdown, kiểm tra quyền ghi thư mục `reports/`.
+- Báo cáo được sinh trong thư mục `reports/` cạnh file `.exe` khi chạy bản build.
+
+## 14. Kiểm Thử Gợi Ý
+
+Chạy kiểm tra cú pháp:
+
+```bash
+python -m py_compile app.py github_client.py analyzer.py ai_summary.py main_window.py chart_widget.py report_generator.py
+```
+
+Chạy app:
+
+```bash
+python app.py
+```
+
+Test repository:
+
+```text
+https://github.com/cuonghuhuu/he-thong-danh-gia-dong-gop-github-bang-AI
+```
+
+Số commit gợi ý:
+
+```text
+50
+```
+
+Kết quả mong muốn:
+
+- App mở được trên Windows.
+- Phân tích repo public không bắt buộc token.
+- Có bảng contributor.
+- Có biểu đồ.
+- Có bảng commit cần xem lại.
+- Xuất được Markdown/CSV/PDF.
+- Điểm hiển thị theo thang `/10`.
+
+## 15. Hướng Phát Triển
+
+- Tích hợp AI API thật để sinh nhận xét tự nhiên hơn.
+- Phân tích Pull Request, Issue, Review và Comment.
+- Đánh giá chất lượng test case.
+- So sánh đóng góp theo từng giai đoạn.
+- Xuất báo cáo PDF đẹp hơn với biểu đồ nhúng trực tiếp.
+- Tối ưu thuật toán phát hiện commit kém chất lượng.

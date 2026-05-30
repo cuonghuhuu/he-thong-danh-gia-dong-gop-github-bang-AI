@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 from PyQt6 import uic
@@ -23,6 +24,20 @@ from report_generator import (
 
 
 BASE_DIR = Path(__file__).resolve().parent
+
+
+def resource_path(relative_path):
+    """Lay file tai nguyen dung duoc ca khi chay source va khi dong goi exe."""
+    if hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS) / relative_path
+    return BASE_DIR / relative_path
+
+
+def app_base_dir():
+    """Thu muc ghi du lieu runtime: source khi dev, thu muc chua exe khi build."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return BASE_DIR
 
 
 def _diem_hien_thi(score_100):
@@ -111,12 +126,13 @@ class AnalysisWorker(QObject):
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        uic.loadUi(BASE_DIR / "main_window.ui", self)
+        uic.loadUi(resource_path("main_window.ui"), self)
 
         self.current_result = None
         self.worker_thread = None
         self.worker = None
-        self.reports_dir = BASE_DIR / "reports"
+        self.reports_dir = app_base_dir() / "reports"
+        self.reports_dir.mkdir(parents=True, exist_ok=True)
 
         self.chart_widget = ChartWidget(self)
         self.chartContainerLayout.addWidget(self.chart_widget)
