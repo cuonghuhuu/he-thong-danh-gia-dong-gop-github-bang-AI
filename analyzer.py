@@ -115,6 +115,38 @@ def _clamp(value, min_value=0.0, max_value=100.0):
     return max(min_value, min(max_value, value))
 
 
+def quy_doi_diem_hien_thi(score_100):
+    """Quy doi diem noi bo 0-100 sang diem hien thi /10."""
+    try:
+        score_100 = float(score_100)
+    except (TypeError, ValueError):
+        score_100 = 0.0
+
+    display_score = round(_clamp(score_100) / 10, 1)
+    return display_score
+
+
+def quy_doi_diem_tru_hien_thi(penalty_score, max_internal=30.0):
+    """Chuan hoa penalty noi bo thanh muc diem tru 0-10 de hien thi."""
+    try:
+        penalty_score = float(penalty_score)
+    except (TypeError, ValueError):
+        penalty_score = 0.0
+
+    max_internal = max(float(max_internal or 1), 1.0)
+    return round(_clamp(penalty_score, 0, max_internal) / max_internal * 10, 1)
+
+
+def _xac_dinh_muc_do_nghi_ngo(penalty_score, reasons=None):
+    reasons = reasons or []
+    penalty_score = _clamp(penalty_score, 0, 25)
+    if penalty_score >= 18 or len(reasons) >= 3:
+        return "Cao"
+    if penalty_score >= 10 or len(reasons) >= 2:
+        return "Trung bình"
+    return "Thấp"
+
+
 def _normalize_text(text):
     text = (text or "").strip().lower()
     text = unicodedata.normalize("NFD", text)
@@ -393,6 +425,7 @@ def danh_gia_chat_luong_commit(commit):
     quality_score = _clamp(quality_score)
     penalty = _clamp(penalty, 0, 25)
     is_suspicious = bool(suspicious_reasons) or penalty >= 10
+    unique_reasons = list(dict.fromkeys(suspicious_reasons))
 
     return {
         "sha": commit.get("sha", ""),
@@ -403,8 +436,12 @@ def danh_gia_chat_luong_commit(commit):
         "code_impact_score": code_impact_score,
         "quality_score": quality_score,
         "penalty_score": penalty,
+        "quality_score_display": quy_doi_diem_hien_thi(quality_score),
+        "penalty_score_display": quy_doi_diem_tru_hien_thi(penalty, max_internal=25),
         "is_suspicious": is_suspicious,
-        "suspicious_reasons": list(dict.fromkeys(suspicious_reasons)),
+        "suspicious_reasons": unique_reasons,
+        "suspicion_level": _xac_dinh_muc_do_nghi_ngo(penalty, unique_reasons),
+        "suspicion_score_display": quy_doi_diem_tru_hien_thi(penalty, max_internal=25),
         "source_file_count": len(file_stats["source_files"]),
         "document_file_count": len(file_stats["document_files"]),
         "generated_file_count": len(file_stats["generated_files"]),
@@ -554,6 +591,10 @@ def tinh_chi_so_contributor(du_lieu_gom):
                         "short_sha": quality_item.get("short_sha", ""),
                         "message": quality_item.get("message", ""),
                         "reasons": quality_item.get("suspicious_reasons", []),
+                        "penalty_score": quality_item.get("penalty_score", 0),
+                        "penalty_score_display": quality_item.get("penalty_score_display", 0),
+                        "suspicion_score_display": quality_item.get("suspicion_score_display", 0),
+                        "suspicion_level": quality_item.get("suspicion_level", "Thấp"),
                     }
                 )
 
@@ -568,7 +609,8 @@ def tinh_chi_so_contributor(du_lieu_gom):
                 return 0.0
             return sum(item.get(key, 0) for item in quality_items) / len(quality_items)
 
-        raw_penalty = avg("penalty_score") + suspicious_commit_ratio * 12
+        quality_score = avg("quality_score")
+        penalty_score = _clamp(avg("penalty_score") + suspicious_commit_ratio * 12, 0, 30)
         file_impact_raw = source_changes + 0.35 * document_changes + 0.15 * generated_changes
 
         ket_qua.append(
@@ -599,8 +641,10 @@ def tinh_chi_so_contributor(du_lieu_gom):
                 "commit_message_score": avg("commit_message_score"),
                 "meaningful_change_score": avg("meaningful_change_score"),
                 "code_impact_score": avg("code_impact_score"),
-                "quality_score": avg("quality_score"),
-                "penalty_score": _clamp(raw_penalty, 0, 30),
+                "quality_score": quality_score,
+                "quality_score_display": quy_doi_diem_hien_thi(quality_score),
+                "penalty_score": penalty_score,
+                "penalty_score_display": quy_doi_diem_tru_hien_thi(penalty_score),
             }
         )
 
@@ -703,6 +747,10 @@ def tinh_diem_dong_gop_co_ban(danh_sach_thong_ke):
                 "final_score": final_score,
                 "score": final_score,
                 "baseline_score": final_score,
+                "quality_score_display": quy_doi_diem_hien_thi(quality_score),
+                "penalty_score_display": quy_doi_diem_tru_hien_thi(penalty_score),
+                "final_score_display": quy_doi_diem_hien_thi(final_score),
+                "score_display": quy_doi_diem_hien_thi(final_score),
             }
         )
         ket_qua.append(thong_tin_moi)
@@ -754,8 +802,11 @@ def tao_overview(
         "total_deletions": sum(item.get("total_deletions", 0) for item in contributors),
         "top_contributor": top_contributor.get("contributor", "Chưa có"),
         "top_score": top_contributor.get("final_score", 0),
+        "top_score_display": quy_doi_diem_hien_thi(top_contributor.get("final_score", 0)),
         "total_score": tong_diem,
+        "total_score_display": quy_doi_diem_hien_thi(tong_diem),
         "average_quality_score": average_quality_score,
+        "average_quality_score_display": quy_doi_diem_hien_thi(average_quality_score),
         "suspicious_commit_count": suspicious_commit_count,
         "analyzed_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     }
