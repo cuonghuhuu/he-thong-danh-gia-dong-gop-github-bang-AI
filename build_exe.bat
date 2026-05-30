@@ -4,6 +4,12 @@ setlocal
 cd /d "%~dp0"
 set PYGAME_HIDE_SUPPORT_PROMPT=1
 
+if not exist "assets\app_icon.ico" (
+    echo Loi: Khong tim thay assets\app_icon.ico.
+    echo Hay dat file icon vao assets\app_icon.ico truoc khi build exe.
+    exit /b 1
+)
+
 echo [1/4] Cai dat thu vien can thiet...
 python -m pip install -r requirements.txt
 if errorlevel 1 (
@@ -22,7 +28,9 @@ python -m PyInstaller ^
   --clean ^
   --windowed ^
   --name "GitHub Contribution AI" ^
+  --icon "assets/app_icon.ico" ^
   --add-data "main_window.ui;." ^
+  --add-data "assets;assets" ^
   --hidden-import "matplotlib.backends.backend_qtagg" ^
   app.py
 

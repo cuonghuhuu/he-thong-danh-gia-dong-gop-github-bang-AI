@@ -13,12 +13,8 @@ SO_COMMIT_TOI_DA_MOI_TRANG = 100
 GITHUB_API_ACCEPT = "application/vnd.github+json"
 GITHUB_USER_AGENT = "GitHub-Contribution-AI"
 
-CONTRIBUTOR_ALIASES = {
-    "le van cuong": "cuonghuhuu",
-    "cuonghuhuu": "cuonghuhuu",
-    "ngoc linh": "ngoclinh205",
-    "ngoclinh205": "ngoclinh205",
-}
+# Khong cau hinh alias contributor mac dinh de tranh uu tien rieng bat ky thanh vien nao.
+CONTRIBUTOR_ALIASES = {}
 BOT_CONTRIBUTORS = {
     "actions-user",
     "github-actions[bot]",
@@ -189,7 +185,7 @@ def _canonicalize_identity(value):
 
 
 def normalize_contributor_name(name, email=None, login=None):
-    """Chuan hoa khoa contributor; alias chi dung de gop danh tinh, khong cong diem."""
+    """Chuan hoa khoa contributor tu GitHub login, email hoac ten author."""
     if _la_github_login_hop_le(login):
         return _canonicalize_identity(login)
     if email:
@@ -339,7 +335,7 @@ def _tao_commit_day_du(commit, chi_tiet=None):
 def normalize_contributor(commit):
     """
     Chuan hoa contributor cho mot commit.
-    Uu tien GitHub author login, sau do den email/name trong commit va alias da biet.
+    Uu tien GitHub author login, sau do den email/name trong commit.
     """
     raw = _lay_thong_tin_identity_raw(commit)
 
@@ -403,8 +399,6 @@ def normalize_contributor(commit):
     ignored_reasons = []
     if is_bot:
         ignored_reasons.append("bot")
-    if is_auto_commit:
-        ignored_reasons.append("auto_commit")
 
     return {
         "khoa_contributor": khoa_contributor,
@@ -526,7 +520,7 @@ def lay_thong_tin_repository(owner, repo, token=None):
 def lay_thong_tin_contributor(commit):
     """
     Tach khoa contributor noi bo va ten hien thi.
-    Uu tien GitHub login, fallback sang email/name va alias da biet.
+    Uu tien GitHub login, fallback sang email/name trong commit.
     """
     contributor = normalize_contributor(commit)
     return contributor["khoa_contributor"], contributor["ten_hien_thi"]

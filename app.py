@@ -64,14 +64,19 @@ def chay_cli():
 
 
 def chay_gui():
+    from PyQt6.QtGui import QIcon
     from PyQt6.QtWidgets import QApplication
 
-    from main_window import MainWindow
+    from main_window import MainWindow, resource_path
 
     app = QApplication(sys.argv)
     app.setApplicationName("GitHub AI Contributor Analyzer")
 
+    icon_path = resource_path("assets/app_icon.ico")
+    app.setWindowIcon(QIcon(str(icon_path)))
+
     window = MainWindow()
+    window.setWindowIcon(QIcon(str(icon_path)))
     window.show()
 
     sys.exit(app.exec())
