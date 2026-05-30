@@ -132,6 +132,14 @@ def _lay_so_nguyen_an_toan(value, default=0):
         return default
 
 
+def _lay_dict_an_toan(value):
+    return value if isinstance(value, dict) else {}
+
+
+def _lay_list_an_toan(value):
+    return value if isinstance(value, list) else []
+
+
 def _normalize_identity_text(value):
     value = (value or "").strip().lower()
     value = unicodedata.normalize("NFD", value)
@@ -199,21 +207,11 @@ def la_commit_tu_dong(message):
 
 
 def _lay_thong_tin_identity_raw(commit):
-    commit_info = commit.get("commit") or {}
-    if not isinstance(commit_info, dict):
-        commit_info = {}
-    commit_author = commit_info.get("author") or {}
-    commit_committer = commit_info.get("committer") or {}
-    github_author = commit.get("author") or {}
-    github_committer = commit.get("committer") or {}
-    if not isinstance(commit_author, dict):
-        commit_author = {}
-    if not isinstance(commit_committer, dict):
-        commit_committer = {}
-    if not isinstance(github_author, dict):
-        github_author = {}
-    if not isinstance(github_committer, dict):
-        github_committer = {}
+    commit_info = _lay_dict_an_toan(commit.get("commit"))
+    commit_author = _lay_dict_an_toan(commit_info.get("author"))
+    commit_committer = _lay_dict_an_toan(commit_info.get("committer"))
+    github_author = _lay_dict_an_toan(commit.get("author"))
+    github_committer = _lay_dict_an_toan(commit.get("committer"))
 
     return {
         "github_login": (
@@ -250,6 +248,70 @@ def _lay_thong_tin_identity_raw(commit):
             or ""
         ),
         "message": commit.get("message") or commit_info.get("message") or "",
+    }
+
+
+def _tao_files_detail(files):
+    danh_sach_file = []
+    files_detail = []
+
+    for file_info in _lay_list_an_toan(files):
+        if not isinstance(file_info, dict):
+            continue
+
+        ten_file = file_info.get("filename")
+        if not ten_file:
+            continue
+
+        danh_sach_file.append(ten_file)
+        files_detail.append(
+            {
+                "filename": ten_file,
+                "status": file_info.get("status", "") or "",
+                "additions": _lay_so_nguyen_an_toan(file_info.get("additions", 0)),
+                "deletions": _lay_so_nguyen_an_toan(file_info.get("deletions", 0)),
+                "changes": _lay_so_nguyen_an_toan(file_info.get("changes", 0)),
+                "patch": file_info.get("patch", "") or "",
+            }
+        )
+
+    return danh_sach_file, files_detail
+
+
+def _tao_commit_day_du(commit, chi_tiet=None):
+    """
+    Tao dict commit on dinh tu response list/detail cua GitHub.
+    GitHub co the tra null cho author/committer khi email khong lien ket account.
+    """
+    commit = _lay_dict_an_toan(commit)
+    chi_tiet = _lay_dict_an_toan(chi_tiet)
+    nguon = chi_tiet or commit
+
+    contributor = normalize_contributor(nguon)
+    stats = _lay_dict_an_toan(nguon.get("stats"))
+    changed_files, files_detail = _tao_files_detail(nguon.get("files"))
+
+    return {
+        "sha": nguon.get("sha") or commit.get("sha"),
+        "khoa_contributor": contributor["khoa_contributor"],
+        "ten_hien_thi": contributor["ten_hien_thi"],
+        "github_login": contributor["github_login"],
+        "author_login": contributor["github_login"],
+        "author_name": contributor["author_name"],
+        "author_email": contributor["author_email"],
+        "committer_login": contributor["committer_login"],
+        "committer_name": contributor["committer_name"],
+        "committer_email": contributor["committer_email"],
+        "message": contributor["message"],
+        "additions": _lay_so_nguyen_an_toan(stats.get("additions", 0)),
+        "deletions": _lay_so_nguyen_an_toan(stats.get("deletions", 0)),
+        "changed_files": changed_files,
+        "changed_files_count": len(changed_files),
+        "files_detail": files_detail,
+        "is_bot": contributor["is_bot"],
+        "is_auto_commit": contributor["is_auto_commit"],
+        "is_ignored": contributor["is_ignored"],
+        "ignored_reasons": contributor["ignored_reasons"],
     }
 
 
@@ -474,25 +536,7 @@ def lay_danh_sach_commit(owner, repo, so_luong=30, token=None):
             break
 
         for commit in du_lieu:
-            contributor = normalize_contributor(commit)
-            danh_sach_commit.append(
-                {
-                    "sha": commit.get("sha"),
-                    "khoa_contributor": contributor["khoa_contributor"],
-                    "ten_hien_thi": contributor["ten_hien_thi"],
-                    "github_login": contributor["github_login"],
-                    "author_name": contributor["author_name"],
-                    "author_email": contributor["author_email"],
-                    "committer_login": contributor["committer_login"],
-                    "committer_name": contributor["committer_name"],
-                    "committer_email": contributor["committer_email"],
-                    "message": contributor["message"],
-                    "is_bot": contributor["is_bot"],
-                    "is_auto_commit": contributor["is_auto_commit"],
-                    "is_ignored": contributor["is_ignored"],
-                    "ignored_reasons": contributor["ignored_reasons"],
-                }
-            )
+            danh_sach_commit.append(_tao_commit_day_du(commit))
 
         if len(du_lieu) < so_commit_tren_trang:
             break
@@ -506,34 +550,7 @@ def lay_chi_tiet_commit(owner, repo, sha, token=None):
     """Lay thong tin chi tiet cua mot commit."""
     url = f"https://api.github.com/repos/{owner}/{repo}/commits/{sha}"
     du_lieu = goi_github_api_json(url, token=token)
-
-    stats = du_lieu.get("stats", {}) or {}
-    files = du_lieu.get("files", []) or []
-
-    danh_sach_file = []
-    files_detail = []
-    for file_info in files:
-        ten_file = file_info.get("filename")
-        if ten_file:
-            danh_sach_file.append(ten_file)
-            files_detail.append(
-                {
-                    "filename": ten_file,
-                    "status": file_info.get("status", ""),
-                    "additions": _lay_so_nguyen_an_toan(file_info.get("additions", 0)),
-                    "deletions": _lay_so_nguyen_an_toan(file_info.get("deletions", 0)),
-                    "changes": _lay_so_nguyen_an_toan(file_info.get("changes", 0)),
-                    "patch": file_info.get("patch", "") or "",
-                }
-            )
-
-    return {
-        "sha": du_lieu.get("sha"),
-        "additions": _lay_so_nguyen_an_toan(stats.get("additions", 0)),
-        "deletions": _lay_so_nguyen_an_toan(stats.get("deletions", 0)),
-        "changed_files": danh_sach_file,
-        "files_detail": files_detail,
-    }
+    return _tao_commit_day_du(du_lieu)
 
 
 def lay_danh_sach_commit_chi_tiet(
@@ -558,6 +575,7 @@ def lay_danh_sach_commit_chi_tiet(
             "khoa_contributor": commit.get("khoa_contributor", "Khong xac dinh"),
             "ten_hien_thi": commit.get("ten_hien_thi", "Khong xac dinh"),
             "github_login": commit.get("github_login", ""),
+            "author_login": commit.get("author_login", commit.get("github_login", "")),
             "author_name": commit.get("author_name", ""),
             "author_email": commit.get("author_email", ""),
             "committer_login": commit.get("committer_login", ""),
@@ -586,12 +604,43 @@ def lay_danh_sach_commit_chi_tiet(
             progress_callback(f"Dang lay chi tiet commit {index}/{tong_commit}...")
 
         chi_tiet = lay_chi_tiet_commit(owner, repo, sha, token=token)
+        metadata.update(
+            {
+                "khoa_contributor": chi_tiet.get(
+                    "khoa_contributor", metadata["khoa_contributor"]
+                ),
+                "ten_hien_thi": chi_tiet.get("ten_hien_thi", metadata["ten_hien_thi"]),
+                "github_login": chi_tiet.get("github_login", metadata["github_login"]),
+                "author_login": chi_tiet.get("author_login", metadata["author_login"]),
+                "author_name": chi_tiet.get("author_name", metadata["author_name"]),
+                "author_email": chi_tiet.get("author_email", metadata["author_email"]),
+                "committer_login": chi_tiet.get(
+                    "committer_login", metadata["committer_login"]
+                ),
+                "committer_name": chi_tiet.get(
+                    "committer_name", metadata["committer_name"]
+                ),
+                "committer_email": chi_tiet.get(
+                    "committer_email", metadata["committer_email"]
+                ),
+                "message": chi_tiet.get("message", metadata["message"]),
+                "is_bot": bool(chi_tiet.get("is_bot", metadata["is_bot"])),
+                "is_auto_commit": bool(
+                    chi_tiet.get("is_auto_commit", metadata["is_auto_commit"])
+                ),
+                "is_ignored": bool(chi_tiet.get("is_ignored", metadata["is_ignored"])),
+                "ignored_reasons": chi_tiet.get(
+                    "ignored_reasons", metadata["ignored_reasons"]
+                ),
+            }
+        )
         ket_qua.append(
             {
                 **metadata,
                 "additions": chi_tiet.get("additions", 0),
                 "deletions": chi_tiet.get("deletions", 0),
                 "changed_files": chi_tiet.get("changed_files", []),
+                "changed_files_count": chi_tiet.get("changed_files_count", 0),
                 "files_detail": chi_tiet.get("files_detail", []),
             }
         )
