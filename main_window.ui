@@ -425,6 +425,19 @@
        </attribute>
        <layout class="QVBoxLayout" name="suspiciousTabLayout">
         <item>
+         <widget class="QLabel" name="suspiciousExplanationLabel">
+          <property name="styleSheet">
+           <string notr="true">color: #444; line-height: 1.3;</string>
+          </property>
+          <property name="text">
+           <string>Commit cần xem lại là commit có dấu hiệu chưa rõ ràng như message quá ngắn, quá chung chung, chỉ sửa file tự động, sửa báo cáo/tài liệu quá nhiều hoặc thay đổi quá nhỏ. Đây là gợi ý để người dùng kiểm tra lại, không phải kết luận tuyệt đối.</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
          <widget class="QGroupBox" name="suspiciousCommitGroupBox">
           <property name="title">
            <string>Commit kém chất lượng / Commit cần xem lại</string>
