@@ -16,6 +16,8 @@ GITHUB_USER_AGENT = "GitHub-Contribution-AI"
 CONTRIBUTOR_ALIASES = {
     "le van cuong": "cuonghuhuu",
     "cuonghuhuu": "cuonghuhuu",
+    "ngoc linh": "ngoclinh205",
+    "ngoclinh205": "ngoclinh205",
 }
 BOT_CONTRIBUTORS = {
     "actions-user",
