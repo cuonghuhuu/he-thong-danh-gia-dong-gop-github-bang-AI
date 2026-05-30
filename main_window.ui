@@ -151,16 +151,6 @@
            </property>
           </widget>
          </item>
-         <item>
-          <widget class="QPushButton" name="saveHistoryButton">
-           <property name="minimumHeight">
-            <number>34</number>
-           </property>
-           <property name="text">
-            <string>Lưu lịch sử</string>
-           </property>
-          </widget>
-         </item>
         </layout>
        </item>
       </layout>
@@ -308,6 +298,22 @@
          <widget class="QTableWidget" name="contributorTable"/>
         </item>
         <item>
+         <widget class="QGroupBox" name="suspiciousCommitGroupBox">
+          <property name="title">
+           <string>Commit kém chất lượng / Commit cần xem lại</string>
+          </property>
+          <layout class="QVBoxLayout" name="suspiciousCommitLayout">
+           <item>
+            <widget class="QTableWidget" name="suspiciousCommitTable">
+             <property name="minimumHeight">
+              <number>165</number>
+             </property>
+            </widget>
+           </item>
+          </layout>
+         </widget>
+        </item>
+        <item>
          <widget class="QLabel" name="explanationLabel">
           <property name="styleSheet">
            <string notr="true">color: #444; line-height: 1.3;</string>
@@ -316,10 +322,9 @@
            <string>Giải thích:
 - Số commit: số lần thành viên đẩy thay đổi lên GitHub.
 - Dòng thêm/xoá: số dòng code được thêm hoặc xoá.
-- Điểm chất lượng: đánh giá mức độ rõ ràng và ý nghĩa của commit/code.
-- Điểm trừ: điểm bị trừ do commit quá ngắn, commit tự động, commit kém chất lượng.
-- Điểm cuối: điểm tổng hợp sau khi xét cả số lượng và chất lượng đóng góp.
-- Commit cần xem lại: commit có dấu hiệu chưa rõ ràng như test, update, auto report.</string>
+- Điểm chất lượng và điểm cuối hiển thị theo thang /10.
+- Điểm trừ hiển thị theo thang 0-10, chuẩn hoá từ penalty nội bộ tối đa 30 điểm.
+- Commit cần xem lại: commit có dấu hiệu chưa rõ ràng như message quá ngắn, quá chung chung, chỉ sửa tài liệu/báo cáo hoặc file môi trường/local.</string>
           </property>
           <property name="wordWrap">
            <bool>true</bool>
@@ -332,6 +337,9 @@
        <layout class="QVBoxLayout" name="rightPanelLayout">
         <item>
          <widget class="QGroupBox" name="chartGroupBox">
+          <property name="minimumHeight">
+           <number>430</number>
+          </property>
           <property name="title">
            <string>Biểu đồ đánh giá</string>
           </property>

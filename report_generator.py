@@ -48,6 +48,39 @@ def _lay_score(item):
     return _lay_float(item.get("final_score", item.get("score", item.get("baseline_score", 0))))
 
 
+def _diem_hien_thi(score_100):
+    return round(max(0.0, min(100.0, _lay_float(score_100))) / 10, 1)
+
+
+def _diem_tru_hien_thi(penalty_score):
+    penalty_score = max(0.0, min(30.0, _lay_float(penalty_score)))
+    return round(penalty_score / 30.0 * 10, 1)
+
+
+def _lay_score_hien_thi(item):
+    if "final_score_display" in item and item.get("final_score_display") is not None:
+        return _lay_float(item.get("final_score_display"))
+    return _diem_hien_thi(_lay_score(item))
+
+
+def _lay_quality_hien_thi(item):
+    if "quality_score_display" in item and item.get("quality_score_display") is not None:
+        return _lay_float(item.get("quality_score_display"))
+    return _diem_hien_thi(item.get("quality_score", 0))
+
+
+def _lay_penalty_hien_thi(item):
+    if "penalty_score_display" in item and item.get("penalty_score_display") is not None:
+        return _lay_float(item.get("penalty_score_display"))
+    return _diem_tru_hien_thi(item.get("penalty_score", 0))
+
+
+def _lay_overview_diem_hien_thi(overview, display_key, raw_key):
+    if display_key in overview and overview.get(display_key) is not None:
+        return _lay_float(overview.get(display_key))
+    return _diem_hien_thi(overview.get(raw_key, 0))
+
+
 def _lay_contributor(item):
     return item.get("contributor") or item.get("tac_gia") or item.get("ten_hien_thi") or ""
 
@@ -71,6 +104,14 @@ def _lay_ly_do(commit, key="reasons"):
     return "; ".join(str(reason) for reason in reasons) if reasons else "Không có lý do cụ thể"
 
 
+def _lay_muc_nghi_ngo(commit):
+    level = commit.get("suspicion_level") or "Thấp"
+    score = commit.get("suspicion_score_display", commit.get("penalty_score_display"))
+    if score is None:
+        return level
+    return f"{level} ({_lay_float(score):.1f}/10)"
+
+
 def _markdown_cell(value):
     text = str(value).replace("\r\n", "\n").replace("\r", "\n").replace("\n", "<br>")
     return text.replace("|", "\\|")
@@ -87,7 +128,8 @@ def _tom_tat_commit_can_xem_lai(item):
     parts = []
     for commit in commits:
         parts.append(
-            f"{_lay_sha_ngan(commit)} - {commit.get('message', '')} ({_lay_ly_do(commit)})"
+            f"{_lay_sha_ngan(commit)} - {commit.get('message', '')} "
+            f"({_lay_ly_do(commit)}; {_lay_muc_nghi_ngo(commit)})"
         )
     return " | ".join(parts)
 
@@ -95,15 +137,15 @@ def _tom_tat_commit_can_xem_lai(item):
 def tao_bang_markdown(contributors):
     headers = [
         "STT",
-        "Contributor",
-        "Commit",
-        "Additions",
-        "Deletions",
-        "Files",
-        "Quality score",
-        "Penalty",
-        "Suspicious commits",
-        "Final score",
+        "Thành viên",
+        "Số commit",
+        "Dòng thêm",
+        "Dòng xoá",
+        "File đã sửa",
+        "Điểm chất lượng /10",
+        "Điểm trừ /10",
+        "Commit cần xem lại",
+        "Điểm cuối /10",
         "Mức đánh giá",
         "Nhận xét AI",
     ]
@@ -120,10 +162,10 @@ def tao_bang_markdown(contributors):
             item.get("total_additions", item.get("additions", 0)),
             item.get("total_deletions", item.get("deletions", 0)),
             _lay_files(item),
-            f"{_lay_float(item.get('quality_score')):.2f}",
-            f"{_lay_float(item.get('penalty_score')):.2f}",
+            f"{_lay_quality_hien_thi(item):.1f}",
+            f"{_lay_penalty_hien_thi(item):.1f}",
             item.get("suspicious_commit_count", 0),
-            f"{_lay_score(item):.2f}",
+            f"{_lay_score_hien_thi(item):.1f}",
             item.get("contribution_level", ""),
             _lay_nhan_xet_ai(item),
         ]
@@ -135,6 +177,12 @@ def tao_bang_markdown(contributors):
 def tao_danh_sach_commit_can_xem_lai_markdown(contributors):
     lines = ["## Commit cần xem lại", ""]
     has_suspicious_commit = False
+    lines.extend(
+        [
+            "| Contributor | SHA | Message | Lý do bị đánh dấu | Mức độ nghi ngờ |",
+            "| --- | --- | --- | --- | --- |",
+        ]
+    )
 
     for item in contributors:
         suspicious_commits = item.get("suspicious_commits", [])
@@ -142,27 +190,60 @@ def tao_danh_sach_commit_can_xem_lai_markdown(contributors):
             continue
 
         has_suspicious_commit = True
-        lines.append(f"### {_lay_contributor(item) or 'Không xác định'}")
-        lines.append("")
-        lines.extend(
-            [
-                "| SHA ngắn | Message | Lý do bị đánh dấu |",
-                "| --- | --- | --- |",
-            ]
-        )
         for commit in suspicious_commits:
             row = [
+                _lay_contributor(item) or "Không xác định",
                 f"`{_lay_sha_ngan(commit)}`",
                 commit.get("message", ""),
                 _lay_ly_do(commit),
+                _lay_muc_nghi_ngo(commit),
             ]
             lines.append("| " + " | ".join(_markdown_cell(value) for value in row) + " |")
-        lines.append("")
 
     if not has_suspicious_commit:
-        lines.append("Không có commit cần xem lại.")
-        lines.append("")
+        lines.append("| Không có commit kém chất lượng được phát hiện. |  |  |  |  |")
+    lines.append("")
 
+    return "\n".join(lines)
+
+
+def _tao_dong_thong_ke_bieu_do(contributors):
+    if not contributors:
+        return ["Chưa có dữ liệu phân tích."]
+
+    rows = []
+    for item in contributors:
+        rows.append(
+            (
+                _lay_contributor(item) or "Không xác định",
+                _lay_score_hien_thi(item),
+                _lay_quality_hien_thi(item),
+                _lay_penalty_hien_thi(item),
+                item.get("suspicious_commit_count", 0),
+                item.get("total_additions", item.get("additions", 0)),
+                item.get("total_deletions", item.get("deletions", 0)),
+            )
+        )
+
+    top_final = max(rows, key=lambda row: row[1])
+    top_quality = max(rows, key=lambda row: row[2])
+    top_suspicious = max(rows, key=lambda row: row[4])
+    total_additions = sum(row[5] for row in rows)
+    total_deletions = sum(row[6] for row in rows)
+
+    return [
+        f"Điểm cuối cao nhất: {top_final[0]} ({top_final[1]:.1f}/10).",
+        f"Điểm chất lượng cao nhất: {top_quality[0]} ({top_quality[2]:.1f}/10).",
+        f"Commit cần xem lại nhiều nhất: {top_suspicious[0]} ({top_suspicious[4]} commit).",
+        f"Tổng dòng thêm/xoá: +{total_additions} / -{total_deletions}.",
+        "Điểm trừ trong báo cáo là mức 0-10 chuẩn hóa từ penalty nội bộ tối đa 30 điểm.",
+    ]
+
+
+def tao_thong_ke_bieu_do_markdown(contributors):
+    lines = ["## Thống kê hỗ trợ biểu đồ", ""]
+    lines.extend(f"- {line}" for line in _tao_dong_thong_ke_bieu_do(contributors))
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -211,7 +292,8 @@ def tao_bao_cao_markdown(ket_qua_phan_tich, tong_ket_repo=None):
         f"- Tổng contributor: {overview.get('contributor_count', 0)}",
         f"- Tổng additions: {overview.get('total_additions', 0)}",
         f"- Tổng deletions: {overview.get('total_deletions', 0)}",
-        f"- Điểm chất lượng trung bình: {_lay_float(overview.get('average_quality_score')):.2f}",
+        "- Điểm chất lượng trung bình: "
+        f"{_lay_overview_diem_hien_thi(overview, 'average_quality_score_display', 'average_quality_score'):.1f}/10",
         f"- Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
         f"- Số commit bot đã loại: {overview.get('ignored_bot_commit_count', 0)}",
         f"- Số commit tự động đã loại: {overview.get('ignored_auto_commit_count', 0)}",
@@ -228,9 +310,13 @@ def tao_bao_cao_markdown(ket_qua_phan_tich, tong_ket_repo=None):
         "            - penalty_score",
         "```",
         "",
+        "Điểm chất lượng và điểm cuối hiển thị theo thang /10. Điểm trừ hiển thị theo thang 0-10, chuẩn hóa từ penalty nội bộ tối đa 30 điểm.",
+        "",
         "## Bảng tổng hợp contributor",
         "",
         tao_bang_markdown(contributors),
+        "",
+        tao_thong_ke_bieu_do_markdown(contributors),
         "",
         tao_danh_sach_commit_can_xem_lai_markdown(contributors),
     ]
@@ -269,18 +355,18 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
         writer.writerow(
             [
                 "STT",
-                "Contributor",
-                "Commit",
-                "Additions",
-                "Deletions",
-                "Files",
-                "Quality score",
-                "Penalty",
-                "Suspicious commits",
-                "Final score",
+                "Thành viên",
+                "Số commit",
+                "Dòng thêm",
+                "Dòng xoá",
+                "File đã sửa",
+                "Điểm chất lượng /10",
+                "Điểm trừ /10",
+                "Commit cần xem lại",
+                "Điểm cuối /10",
                 "Mức đánh giá",
                 "Nhận xét AI",
-                "Commit cần xem lại",
+                "Chi tiết commit cần xem lại",
             ]
         )
 
@@ -293,10 +379,10 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
                     item.get("total_additions", item.get("additions", 0)),
                     item.get("total_deletions", item.get("deletions", 0)),
                     _lay_files(item),
-                    f"{_lay_float(item.get('quality_score')):.2f}",
-                    f"{_lay_float(item.get('penalty_score')):.2f}",
+                    f"{_lay_quality_hien_thi(item):.1f}",
+                    f"{_lay_penalty_hien_thi(item):.1f}",
                     item.get("suspicious_commit_count", 0),
-                    f"{_lay_score(item):.2f}",
+                    f"{_lay_score_hien_thi(item):.1f}",
                     item.get("contribution_level", ""),
                     _lay_nhan_xet_ai(item),
                     _tom_tat_commit_can_xem_lai(item),
@@ -305,7 +391,7 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
 
         writer.writerow([])
         writer.writerow(["Commit cần xem lại"])
-        writer.writerow(["Contributor", "SHA ngắn", "Message", "Lý do bị đánh dấu"])
+        writer.writerow(["Contributor", "SHA", "Message", "Lý do bị đánh dấu", "Mức độ nghi ngờ"])
         has_suspicious_commit = False
         for item in contributors:
             for commit in item.get("suspicious_commits", []):
@@ -316,10 +402,16 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
                         _lay_sha_ngan(commit),
                         commit.get("message", ""),
                         _lay_ly_do(commit),
+                        _lay_muc_nghi_ngo(commit),
                     ]
                 )
         if not has_suspicious_commit:
-            writer.writerow(["Không có commit cần xem lại"])
+            writer.writerow(["Không có commit kém chất lượng được phát hiện."])
+
+        writer.writerow([])
+        writer.writerow(["Thống kê hỗ trợ biểu đồ"])
+        for line in _tao_dong_thong_ke_bieu_do(contributors):
+            writer.writerow([line])
 
         if ignored_commits:
             writer.writerow([])
@@ -458,8 +550,10 @@ def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
             f"Thời gian phân tích: {overview.get('analyzed_at', '')}",
             f"Số commit đã phân tích: {overview.get('analyzed_commit_count', 0)}",
             f"Tổng contributor: {overview.get('contributor_count', 0)}",
-            f"Điểm chất lượng trung bình: {_lay_float(overview.get('average_quality_score')):.2f}",
+            "Điểm chất lượng trung bình: "
+            f"{_lay_overview_diem_hien_thi(overview, 'average_quality_score_display', 'average_quality_score'):.1f}/10",
             f"Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
+            "Điểm trừ hiển thị theo thang 0-10, chuẩn hóa từ penalty nội bộ tối đa 30 điểm.",
             "",
             "Bảng contributor:",
         ]
@@ -468,10 +562,10 @@ def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
                 f"- {_lay_contributor(item)} | commit={item.get('commit_count', 0)} | "
                 f"add={item.get('total_additions', item.get('additions', 0))} | "
                 f"del={item.get('total_deletions', item.get('deletions', 0))} | "
-                f"files={_lay_files(item)} | quality={_lay_float(item.get('quality_score')):.2f} | "
-                f"penalty={_lay_float(item.get('penalty_score')):.2f} | "
+                f"files={_lay_files(item)} | quality={_lay_quality_hien_thi(item):.1f}/10 | "
+                f"penalty={_lay_penalty_hien_thi(item):.1f}/10 | "
                 f"suspicious={item.get('suspicious_commit_count', 0)} | "
-                f"final={_lay_score(item):.2f} | mức={item.get('contribution_level', '')}"
+                f"final={_lay_score_hien_thi(item):.1f}/10 | mức={item.get('contribution_level', '')}"
             )
             if _lay_nhan_xet_ai(item):
                 lines.append(f"  Nhận xét AI: {_lay_nhan_xet_ai(item)}")
@@ -482,11 +576,18 @@ def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
             for commit in item.get("suspicious_commits", []):
                 suspicious_lines.append(
                     f"- {_lay_contributor(item)} | {_lay_sha_ngan(commit)} | "
-                    f"{commit.get('message', '')} | {_lay_ly_do(commit)}"
+                    f"{commit.get('message', '')} | {_lay_ly_do(commit)} | {_lay_muc_nghi_ngo(commit)}"
                 )
         if not suspicious_lines:
-            suspicious_lines.append("Không có commit cần xem lại.")
+            suspicious_lines.append("Không có commit kém chất lượng được phát hiện.")
         _them_trang_text_pdf(pdf, "Commit cần xem lại", suspicious_lines, font_name)
+
+        _them_trang_text_pdf(
+            pdf,
+            "Thống kê hỗ trợ biểu đồ",
+            _tao_dong_thong_ke_bieu_do(contributors),
+            font_name,
+        )
 
         if ignored_commits:
             ignored_lines = [
@@ -563,10 +664,12 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
         f"Tổng contributor: {overview.get('contributor_count', 0)}",
         f"Tổng additions: {overview.get('total_additions', 0)}",
         f"Tổng deletions: {overview.get('total_deletions', 0)}",
-        f"Điểm chất lượng trung bình: {_lay_float(overview.get('average_quality_score')):.2f}",
+        "Điểm chất lượng trung bình: "
+        f"{_lay_overview_diem_hien_thi(overview, 'average_quality_score_display', 'average_quality_score'):.1f}/10",
         f"Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
         f"Số commit bot đã loại: {overview.get('ignored_bot_commit_count', 0)}",
         f"Số commit tự động đã loại: {overview.get('ignored_auto_commit_count', 0)}",
+        "Điểm trừ hiển thị theo thang 0-10, chuẩn hóa từ penalty nội bộ tối đa 30 điểm.",
     ]
     for line in overview_lines:
         elements.append(_paragraph(line, styles["Normal"]))
@@ -582,10 +685,10 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
             _paragraph("Additions", table_header),
             _paragraph("Deletions", table_header),
             _paragraph("Files", table_header),
-            _paragraph("Quality score", table_header),
-            _paragraph("Penalty", table_header),
-            _paragraph("Suspicious commits", table_header),
-            _paragraph("Final score", table_header),
+            _paragraph("Quality /10", table_header),
+            _paragraph("Penalty /10", table_header),
+            _paragraph("Commit cần xem lại", table_header),
+            _paragraph("Final /10", table_header),
             _paragraph("Mức đánh giá", table_header),
             _paragraph("Nhận xét AI", table_header),
         ]
@@ -599,10 +702,10 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
                 str(item.get("total_additions", item.get("additions", 0))),
                 str(item.get("total_deletions", item.get("deletions", 0))),
                 str(_lay_files(item)),
-                f"{_lay_float(item.get('quality_score')):.2f}",
-                f"{_lay_float(item.get('penalty_score')):.2f}",
+                f"{_lay_quality_hien_thi(item):.1f}",
+                f"{_lay_penalty_hien_thi(item):.1f}",
                 str(item.get("suspicious_commit_count", 0)),
-                f"{_lay_score(item):.2f}",
+                f"{_lay_score_hien_thi(item):.1f}",
                 _paragraph(item.get("contribution_level", ""), table_text),
                 _paragraph(_lay_nhan_xet_ai(item), table_text),
             ]
@@ -650,6 +753,7 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
             _paragraph("SHA ngắn", table_header),
             _paragraph("Message", table_header),
             _paragraph("Lý do bị đánh dấu", table_header),
+            _paragraph("Mức độ nghi ngờ", table_header),
         ]
     ]
     for item in contributors:
@@ -660,15 +764,16 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
                     _paragraph(_lay_sha_ngan(commit), table_text),
                     _paragraph(commit.get("message", ""), table_text),
                     _paragraph(_lay_ly_do(commit), table_text),
+                    _paragraph(_lay_muc_nghi_ngo(commit), table_text),
                 ]
             )
 
     if len(suspicious_rows) == 1:
-        elements.append(_paragraph("Không có commit cần xem lại.", styles["Normal"]))
+        elements.append(_paragraph("Không có commit kém chất lượng được phát hiện.", styles["Normal"]))
     else:
         suspicious_table = LongTable(
             suspicious_rows,
-            colWidths=[3.2 * cm, 2.0 * cm, 8.5 * cm, 14.0 * cm],
+            colWidths=[3.0 * cm, 1.8 * cm, 7.4 * cm, 11.4 * cm, 4.0 * cm],
             repeatRows=1,
         )
         suspicious_table.setStyle(
@@ -683,6 +788,11 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
             )
         )
         elements.append(suspicious_table)
+
+    elements.append(Spacer(1, 0.35 * cm))
+    elements.append(Paragraph("Thống kê hỗ trợ biểu đồ", styles["Heading2"]))
+    for line in _tao_dong_thong_ke_bieu_do(contributors):
+        elements.append(_paragraph(line, styles["Normal"]))
 
     if ignored_commits:
         elements.append(Spacer(1, 0.35 * cm))

@@ -14,7 +14,6 @@ from PyQt6.QtWidgets import (
 
 from analyzer import phan_tich_repo
 from chart_widget import ChartWidget
-from db_manager import DatabaseManager
 from github_client import chuan_hoa_owner_repo
 from report_generator import (
     xuat_csv as export_csv_report,
@@ -24,6 +23,61 @@ from report_generator import (
 
 
 BASE_DIR = Path(__file__).resolve().parent
+
+
+def _diem_hien_thi(score_100):
+    try:
+        score_100 = float(score_100)
+    except (TypeError, ValueError):
+        score_100 = 0.0
+    return round(max(0.0, min(100.0, score_100)) / 10, 1)
+
+
+def _diem_tru_hien_thi(penalty_score):
+    try:
+        penalty_score = float(penalty_score)
+    except (TypeError, ValueError):
+        penalty_score = 0.0
+    penalty_score = max(0.0, min(30.0, penalty_score))
+    return round(penalty_score / 30.0 * 10, 1)
+
+
+def _lay_diem_hien_thi(item, display_key, raw_key, fallback_key=None):
+    if display_key in item and item.get(display_key) is not None:
+        try:
+            return float(item.get(display_key))
+        except (TypeError, ValueError):
+            pass
+    raw_value = item.get(raw_key, item.get(fallback_key, 0)) if fallback_key else item.get(raw_key, 0)
+    return _diem_hien_thi(raw_value)
+
+
+def _lay_diem_tru_hien_thi(item):
+    if "penalty_score_display" in item and item.get("penalty_score_display") is not None:
+        try:
+            return float(item.get("penalty_score_display"))
+        except (TypeError, ValueError):
+            pass
+    return _diem_tru_hien_thi(item.get("penalty_score", 0))
+
+
+def _lay_ly_do_commit(commit):
+    reasons = commit.get("reasons") or commit.get("suspicious_reasons") or []
+    if isinstance(reasons, str):
+        return reasons
+    return "; ".join(str(reason) for reason in reasons) if reasons else "Cần viết mô tả rõ hơn"
+
+
+def _lay_muc_nghi_ngo(commit):
+    level = commit.get("suspicion_level") or "Thấp"
+    score = commit.get("suspicion_score_display", commit.get("penalty_score_display"))
+    if score is None:
+        return level
+    try:
+        score = float(score)
+    except (TypeError, ValueError):
+        return level
+    return f"{level} ({score:.1f}/10)"
 
 
 class AnalysisWorker(QObject):
@@ -63,7 +117,6 @@ class MainWindow(QMainWindow):
         self.worker_thread = None
         self.worker = None
         self.reports_dir = BASE_DIR / "reports"
-        self.db_manager = DatabaseManager(BASE_DIR / "analysis_history.sqlite3")
 
         self.chart_widget = ChartWidget(self)
         self.chartContainerLayout.addWidget(self.chart_widget)
@@ -71,7 +124,6 @@ class MainWindow(QMainWindow):
         self._setup_widgets()
         self._connect_signals()
         self._set_result_buttons_enabled(False)
-        self.tai_lich_su()
 
     def _setup_widgets(self):
         self.tokenInput.setEchoMode(QLineEdit.EchoMode.Password)
@@ -90,14 +142,18 @@ class MainWindow(QMainWindow):
         self.contributorTable.horizontalHeader().setMinimumSectionSize(80)
         self.contributorTable.verticalHeader().setVisible(False)
 
-        if hasattr(self, "historyTable"):
-            self.historyTable.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-            self.historyTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-            self.historyTable.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-            self.historyTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-            self.historyTable.horizontalHeader().setStretchLastSection(True)
-            self.historyTable.horizontalHeader().setMinimumSectionSize(80)
-            self.historyTable.verticalHeader().setVisible(False)
+        if hasattr(self, "suspiciousCommitTable"):
+            self.suspiciousCommitTable.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+            self.suspiciousCommitTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+            self.suspiciousCommitTable.setWordWrap(True)
+            self.suspiciousCommitTable.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            self.suspiciousCommitTable.horizontalHeader().setSectionResizeMode(
+                QHeaderView.ResizeMode.Interactive
+            )
+            self.suspiciousCommitTable.horizontalHeader().setStretchLastSection(True)
+            self.suspiciousCommitTable.horizontalHeader().setMinimumSectionSize(90)
+            self.suspiciousCommitTable.verticalHeader().setVisible(False)
+            self.hien_thi_commit_can_xem_lai([])
 
         self.aiTextEdit.setReadOnly(True)
         self.statusbar.showMessage("Sẵn sàng.")
@@ -117,15 +173,11 @@ class MainWindow(QMainWindow):
         self.exportMarkdownButton.clicked.connect(self.xuat_markdown)
         self.exportCsvButton.clicked.connect(self.xuat_csv)
         self.exportPdfButton.clicked.connect(self.xuat_pdf)
-        self.saveHistoryButton.clicked.connect(self.luu_lich_su)
-        if hasattr(self, "refreshHistoryButton"):
-            self.refreshHistoryButton.clicked.connect(self.tai_lich_su)
 
     def _set_result_buttons_enabled(self, enabled):
         self.exportMarkdownButton.setEnabled(enabled)
         self.exportCsvButton.setEnabled(enabled)
         self.exportPdfButton.setEnabled(enabled)
-        self.saveHistoryButton.setEnabled(enabled)
 
     def tu_dong_dien_owner_repo_tu_url(self):
         repo_url = self.repoUrlInput.text().strip()
@@ -196,6 +248,7 @@ class MainWindow(QMainWindow):
 
         self.hien_thi_tong_quan(ket_qua)
         self.hien_thi_bang_contributor(contributors)
+        self.hien_thi_commit_can_xem_lai(contributors)
         self.chart_widget.update_charts(contributors)
         self.aiTextEdit.setPlainText(ket_qua.get("ai_summary", ""))
         self._set_result_buttons_enabled(True)
@@ -221,16 +274,22 @@ class MainWindow(QMainWindow):
         self.totalContributorsLabel.setText(str(overview.get("contributor_count", 0)))
         self.totalAdditionsLabel.setText(str(overview.get("total_additions", 0)))
         self.totalDeletionsLabel.setText(str(overview.get("total_deletions", 0)))
-        self.averageQualityLabel.setText(f"{overview.get('average_quality_score', 0):.2f}")
+        average_quality = overview.get(
+            "average_quality_score_display",
+            _diem_hien_thi(overview.get("average_quality_score", 0)),
+        )
+        self.averageQualityLabel.setText(f"{average_quality:.1f}/10")
         self.suspiciousCommitLabel.setText(str(overview.get("suspicious_commit_count", 0)))
 
         if hasattr(self, "topContributorLabel"):
             self.topContributorLabel.setText(
                 f"{overview.get('top_contributor', 'Chưa có')} "
-                f"({overview.get('top_score', 0):.2f})"
+                f"({overview.get('top_score_display', _diem_hien_thi(overview.get('top_score', 0))):.1f}/10)"
             )
         if hasattr(self, "totalScoreLabel"):
-            self.totalScoreLabel.setText(f"{overview.get('total_score', 0):.2f}")
+            self.totalScoreLabel.setText(
+                f"{overview.get('total_score_display', _diem_hien_thi(overview.get('total_score', 0))):.1f}/10"
+            )
 
     def hien_thi_bang_contributor(self, contributors):
         headers = [
@@ -239,10 +298,11 @@ class MainWindow(QMainWindow):
             "Dòng thêm",
             "Dòng xoá",
             "File đã sửa",
-            "Điểm chất lượng",
-            "Điểm trừ",
-            "Điểm cuối",
+            "Điểm chất lượng /10",
+            "Điểm trừ /10",
+            "Điểm cuối /10",
             "Mức đánh giá",
+            "Commit cần xem lại",
             "Nhận xét ngắn",
         ]
         self.contributorTable.setColumnCount(len(headers))
@@ -256,16 +316,17 @@ class MainWindow(QMainWindow):
                 item.get("total_additions", 0),
                 item.get("total_deletions", 0),
                 item.get("files_changed", item.get("changed_files_count", 0)),
-                f"{item.get('quality_score', 0):.2f}",
-                f"{item.get('penalty_score', 0):.2f}",
-                f"{item.get('final_score', item.get('score', 0)):.2f}",
+                f"{_lay_diem_hien_thi(item, 'quality_score_display', 'quality_score'):.1f}",
+                f"{_lay_diem_tru_hien_thi(item):.1f}",
+                f"{_lay_diem_hien_thi(item, 'final_score_display', 'final_score', 'score'):.1f}",
                 item.get("contribution_level", ""),
+                item.get("suspicious_commit_count", 0),
                 item.get("short_summary", item.get("ai_summary", "")),
             ]
 
             for col, value in enumerate(values):
                 table_item = QTableWidgetItem(str(value))
-                if col not in {0, 8, 9}:
+                if col not in {0, 8, 10}:
                     table_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 self.contributorTable.setItem(row, col, table_item)
 
@@ -279,14 +340,65 @@ class MainWindow(QMainWindow):
             2: 100,
             3: 100,
             4: 105,
-            5: 135,
-            6: 95,
-            7: 105,
-            8: 120,
-            9: 260,
+            5: 155,
+            6: 110,
+            7: 120,
+            8: 155,
+            9: 145,
+            10: 300,
         }
         for column, width in column_widths.items():
             self.contributorTable.setColumnWidth(column, width)
+
+    def hien_thi_commit_can_xem_lai(self, contributors):
+        if not hasattr(self, "suspiciousCommitTable"):
+            return
+
+        headers = [
+            "Contributor",
+            "SHA",
+            "Message",
+            "Lý do bị đánh dấu",
+            "Mức độ nghi ngờ",
+        ]
+        rows = []
+        for item in contributors:
+            contributor = item.get("contributor", item.get("tac_gia", ""))
+            for commit in item.get("suspicious_commits", []):
+                rows.append(
+                    [
+                        contributor,
+                        commit.get("short_sha") or str(commit.get("sha", ""))[:7],
+                        commit.get("message", ""),
+                        _lay_ly_do_commit(commit),
+                        _lay_muc_nghi_ngo(commit),
+                    ]
+                )
+
+        self.suspiciousCommitTable.clearSpans()
+        self.suspiciousCommitTable.setColumnCount(len(headers))
+        self.suspiciousCommitTable.setHorizontalHeaderLabels(headers)
+
+        if not rows:
+            self.suspiciousCommitTable.setRowCount(1)
+            message_item = QTableWidgetItem("Không có commit kém chất lượng được phát hiện.")
+            message_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.suspiciousCommitTable.setItem(0, 0, message_item)
+            self.suspiciousCommitTable.setSpan(0, 0, 1, len(headers))
+        else:
+            self.suspiciousCommitTable.setRowCount(len(rows))
+            for row_index, row_values in enumerate(rows):
+                for col, value in enumerate(row_values):
+                    table_item = QTableWidgetItem(str(value))
+                    if col == 4:
+                        table_item.setTextAlignment(
+                            Qt.AlignmentFlag.AlignCenter | Qt.AlignmentFlag.AlignVCenter
+                        )
+                    self.suspiciousCommitTable.setItem(row_index, col, table_item)
+
+        self.suspiciousCommitTable.resizeRowsToContents()
+        for column, width in {0: 130, 1: 95, 2: 260, 3: 310, 4: 145}.items():
+            self.suspiciousCommitTable.setColumnWidth(column, width)
 
     def _kiem_tra_co_ket_qua(self):
         if not self.current_result:
@@ -329,71 +441,3 @@ class MainWindow(QMainWindow):
             return
 
         QMessageBox.information(self, "Đã xuất PDF", f"Đã tạo file:\n{path}")
-
-    def luu_lich_su(self):
-        if not self._kiem_tra_co_ket_qua():
-            return
-
-        try:
-            new_id = self.db_manager.luu_lich_su(self.current_result)
-        except Exception as exc:
-            QMessageBox.critical(self, "Lỗi lưu lịch sử", str(exc))
-            return
-
-        self.tai_lich_su()
-        QMessageBox.information(self, "Đã lưu lịch sử", f"Đã lưu lần phân tích ID {new_id}.")
-
-    def tai_lich_su(self):
-        if not hasattr(self, "historyTable"):
-            return
-
-        rows = self.db_manager.lay_lich_su()
-        headers = [
-            "ID",
-            "Thời gian",
-            "Chủ sở hữu",
-            "Kho GitHub",
-            "Số commit",
-            "Thành viên",
-            "Thành viên nổi bật",
-            "Tổng điểm",
-            "Dòng thêm",
-            "Dòng xoá",
-        ]
-        self.historyTable.setColumnCount(len(headers))
-        self.historyTable.setHorizontalHeaderLabels(headers)
-        self.historyTable.setRowCount(len(rows))
-
-        for row_index, row in enumerate(rows):
-            values = [
-                row.get("id", ""),
-                row.get("analyzed_at", ""),
-                row.get("owner", ""),
-                row.get("repo", ""),
-                row.get("commit_count", 0),
-                row.get("contributor_count", 0),
-                row.get("top_contributor", ""),
-                f"{row.get('total_score', 0):.2f}",
-                row.get("total_additions", 0),
-                row.get("total_deletions", 0),
-            ]
-            for col, value in enumerate(values):
-                table_item = QTableWidgetItem(str(value))
-                if col in {0, 4, 5, 7, 8, 9}:
-                    table_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-                self.historyTable.setItem(row_index, col, table_item)
-
-        self.historyTable.resizeRowsToContents()
-        for column, width in {
-            0: 60,
-            1: 150,
-            2: 110,
-            3: 130,
-            4: 95,
-            5: 95,
-            6: 150,
-            7: 100,
-            8: 100,
-            9: 100,
-        }.items():
-            self.historyTable.setColumnWidth(column, width)

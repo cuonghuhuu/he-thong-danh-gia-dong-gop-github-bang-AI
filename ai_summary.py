@@ -16,6 +16,35 @@ def _lay_so_nguyen(item, *keys, default=0):
     return int(_lay_so(item, *keys, default=default))
 
 
+def _diem_hien_thi(score_100):
+    try:
+        score_100 = float(score_100)
+    except (TypeError, ValueError):
+        score_100 = 0.0
+    return round(max(0.0, min(100.0, score_100)) / 10, 1)
+
+
+def _diem_tru_hien_thi(penalty_score):
+    try:
+        penalty_score = float(penalty_score)
+    except (TypeError, ValueError):
+        penalty_score = 0.0
+    penalty_score = max(0.0, min(30.0, penalty_score))
+    return round(penalty_score / 30.0 * 10, 1)
+
+
+def _lay_diem_hien_thi(item, display_key, raw_key, *fallback_keys):
+    if display_key in item and item.get(display_key) is not None:
+        return _lay_so(item, display_key)
+    return _diem_hien_thi(_lay_so(item, raw_key, *fallback_keys))
+
+
+def _lay_diem_tru_hien_thi(item):
+    if "penalty_score_display" in item and item.get("penalty_score_display") is not None:
+        return _lay_so(item, "penalty_score_display")
+    return _diem_tru_hien_thi(_lay_so(item, "penalty_score"))
+
+
 def _dem_commit_theo_loai(item, key, file_count_key=None, change_key=None):
     """Uu tien count co san, neu khong co thi suy ra tu commit_quality_items."""
     if key in item and item.get(key) is not None:
@@ -70,23 +99,24 @@ def _la_nhieu(count, total, minimum=2, ratio=0.4):
 
 
 def xac_dinh_muc_dong_gop(score):
-    """Phan loai contributor theo diem cuoi 0-100."""
-    if score >= 85:
+    """Phan loai contributor theo diem cuoi /10."""
+    score = _diem_hien_thi(score) if score > 10 else score
+    if score >= 8.5:
         return "Đóng góp chất lượng cao"
-    if score >= 70:
+    if score >= 7.0:
         return "Đóng góp tốt"
-    if score >= 50:
+    if score >= 5.0:
         return "Đóng góp trung bình"
-    if score >= 30:
+    if score >= 3.0:
         return "Đóng góp thấp"
     return "Cần cải thiện"
 
 
 def xac_dinh_loai_dong_gop(item):
     """Gắn nhãn phụ để người đọc hiểu contributor mạnh ở nhóm đóng góp nào."""
-    final_score = _lay_so(item, "final_score", "score")
-    quality_score = _lay_so(item, "quality_score")
-    penalty_score = _lay_so(item, "penalty_score")
+    final_score = _lay_diem_hien_thi(item, "final_score_display", "final_score", "score")
+    quality_score = _lay_diem_hien_thi(item, "quality_score_display", "quality_score")
+    penalty_score = _lay_diem_tru_hien_thi(item)
     commit_count = _lay_so_nguyen(item, "commit_count")
     suspicious_count = _lay_so_nguyen(item, "suspicious_commit_count")
     suspicious_ratio = _lay_so(item, "suspicious_commit_ratio")
@@ -97,7 +127,7 @@ def xac_dinh_loai_dong_gop(item):
     if suspicious_ratio >= 0.4 and suspicious_count > 0:
         return "Contributor có nhiều commit cần xem lại"
 
-    if commit_count <= 1 and final_score < 50:
+    if commit_count <= 1 and final_score < 5.0:
         return "Contributor ít đóng góp"
 
     if _la_nhieu(integration_count, commit_count):
@@ -109,10 +139,10 @@ def xac_dinh_loai_dong_gop(item):
     if _la_nhieu(documentation_count, commit_count):
         return "Contributor thiên về tài liệu/báo cáo"
 
-    if final_score >= 70 and quality_score >= 75 and penalty_score < 8:
+    if final_score >= 7.0 and quality_score >= 7.5 and penalty_score < 2.7:
         return "Contributor có đóng góp chất lượng"
 
-    if commit_count >= 3 and quality_score < 60:
+    if commit_count >= 3 and quality_score < 6.0:
         return "Contributor tích cực nhưng cần cải thiện chất lượng"
 
     return "Contributor cần theo dõi thêm"
@@ -120,13 +150,13 @@ def xac_dinh_loai_dong_gop(item):
 
 def _mo_ta_muc_do_tham_gia(item):
     commit_count = _lay_so_nguyen(item, "commit_count")
-    final_score = _lay_so(item, "final_score", "score")
+    final_score = _lay_diem_hien_thi(item, "final_score_display", "final_score", "score")
     total_changes = _lay_so_nguyen(item, "total_changes")
 
-    if commit_count >= 5 and final_score >= 70:
+    if commit_count >= 5 and final_score >= 7.0:
         return (
             f"tham gia tích cực với {commit_count} commit, điểm tổng hợp "
-            f"{final_score:.1f}/100 và khối lượng thay đổi {total_changes} dòng"
+            f"{final_score:.1f}/10 và khối lượng thay đổi {total_changes} dòng"
         )
     if commit_count >= 3:
         return (
@@ -142,29 +172,29 @@ def _mo_ta_muc_do_tham_gia(item):
 
 
 def _mo_ta_chat_luong(item):
-    quality_score = _lay_so(item, "quality_score")
-    penalty_score = _lay_so(item, "penalty_score")
+    quality_score = _lay_diem_hien_thi(item, "quality_score_display", "quality_score")
+    penalty_score = _lay_diem_tru_hien_thi(item)
     suspicious_count = _lay_so_nguyen(item, "suspicious_commit_count")
     commit_count = _lay_so_nguyen(item, "commit_count")
 
-    if quality_score >= 80 and penalty_score < 8:
+    if quality_score >= 8.0 and penalty_score < 2.7:
         text = (
-            f"quality_score {quality_score:.1f}/100 cho thấy đóng góp có chất lượng cao, "
+            f"đạt {quality_score:.1f}/10 về chất lượng, cho thấy đóng góp có chất lượng cao, "
             "message và nội dung thay đổi nhìn chung rõ ràng"
         )
-    elif quality_score >= 65:
+    elif quality_score >= 6.5:
         text = (
-            f"quality_score {quality_score:.1f}/100 ở mức khá; đóng góp có giá trị "
+            f"đạt {quality_score:.1f}/10 về chất lượng, ở mức khá; đóng góp có giá trị "
             "nhưng vẫn còn điểm có thể cải thiện"
         )
-    elif quality_score >= 45:
+    elif quality_score >= 4.5:
         text = (
-            f"quality_score {quality_score:.1f}/100 ở mức trung bình; nên làm rõ mục đích "
+            f"đạt {quality_score:.1f}/10 về chất lượng, ở mức trung bình; nên làm rõ mục đích "
             "commit và tăng tác động vào phần chính của dự án"
         )
     else:
         text = (
-            f"quality_score {quality_score:.1f}/100 còn thấp; nhiều thay đổi chưa thể hiện "
+            f"chỉ đạt {quality_score:.1f}/10 về chất lượng; nhiều thay đổi chưa thể hiện "
             "rõ giá trị hoặc tác động kỹ thuật"
         )
 
@@ -182,22 +212,22 @@ def _mo_ta_chat_luong(item):
 def _tao_diem_manh(item):
     strengths = []
     commit_count = _lay_so_nguyen(item, "commit_count")
-    quality_score = _lay_so(item, "quality_score")
+    quality_score = _lay_diem_hien_thi(item, "quality_score_display", "quality_score")
     documentation_count = _dem_documentation_commit(item)
     core_code_count = _dem_core_code_commit(item)
     integration_count = _dem_integration_commit(item)
 
-    if quality_score >= 75:
-        strengths.append("đóng góp có chất lượng tốt, quality_score cao")
+    if quality_score >= 7.5:
+        strengths.append(f"đóng góp có chất lượng tốt, đạt {quality_score:.1f}/10")
     if _la_nhieu(core_code_count, commit_count):
         strengths.append("thiên về code chính, có tác động trực tiếp đến logic/source code")
     if _la_nhieu(integration_count, commit_count):
         strengths.append("có vai trò tích hợp hệ thống, kết nối các phần của dự án")
     if _la_nhieu(documentation_count, commit_count):
         strengths.append("đóng góp nhiều cho tài liệu/báo cáo, giúp dự án dễ theo dõi hơn")
-    if _lay_so(item, "commit_message_score") >= 75:
+    if _diem_hien_thi(_lay_so(item, "commit_message_score")) >= 7.5:
         strengths.append("commit message tương đối rõ ràng")
-    if _lay_so(item, "meaningful_change_score") >= 70:
+    if _diem_hien_thi(_lay_so(item, "meaningful_change_score")) >= 7.0:
         strengths.append("thay đổi có ý nghĩa, không chỉ là chỉnh sửa nhỏ")
 
     if strengths:
@@ -216,9 +246,9 @@ def _tao_han_che(item):
         weaknesses.append("có nhiều commit cần xem lại, đặc biệt về độ rõ của commit message")
     elif suspicious_count > 0:
         weaknesses.append("có commit cần xem lại")
-    if _lay_so(item, "commit_message_score") < 55:
+    if _diem_hien_thi(_lay_so(item, "commit_message_score")) < 5.5:
         weaknesses.append("commit message còn chung chung hoặc quá ngắn")
-    if _lay_so(item, "code_impact_score") < 50:
+    if _diem_hien_thi(_lay_so(item, "code_impact_score")) < 5.0:
         weaknesses.append("tác động vào code chính còn thấp")
     if _la_nhieu(documentation_count, commit_count) and not _la_nhieu(core_code_count, commit_count):
         weaknesses.append("đóng góp nghiêng về tài liệu/báo cáo nên tác động kỹ thuật chưa nhiều")
@@ -260,7 +290,7 @@ def _tao_goi_y(item):
     documentation_count = _dem_documentation_commit(item)
     core_code_count = _dem_core_code_commit(item)
     integration_count = _dem_integration_commit(item)
-    quality_score = _lay_so(item, "quality_score")
+    quality_score = _lay_diem_hien_thi(item, "quality_score_display", "quality_score")
 
     if _la_nhieu(suspicious_count, commit_count, minimum=2, ratio=0.3):
         return (
@@ -281,7 +311,7 @@ def _tao_goi_y(item):
         )
     if _la_nhieu(core_code_count, commit_count):
         return "duy trì đóng góp vào code chính và bổ sung test/comment vừa đủ khi thay đổi logic quan trọng"
-    if quality_score >= 75:
+    if quality_score >= 7.5:
         return "duy trì chất lượng hiện tại, tiếp tục viết commit message rõ và chia commit theo từng mục đích"
     return "tăng số commit có nội dung rõ ràng, ưu tiên thay đổi có tác động thực tế đến chức năng của dự án"
 
@@ -301,7 +331,8 @@ def tao_noi_dung_nhan_xet(item):
 
 
 def tao_nhan_xet_ngan(item):
-    quality_score = _lay_so(item, "quality_score")
+    quality_score = _lay_diem_hien_thi(item, "quality_score_display", "quality_score")
+    final_score = _lay_diem_hien_thi(item, "final_score_display", "final_score", "score")
     suspicious_count = _lay_so_nguyen(item, "suspicious_commit_count")
     commit_count = _lay_so_nguyen(item, "commit_count")
     documentation_count = _dem_documentation_commit(item)
@@ -309,16 +340,16 @@ def tao_nhan_xet_ngan(item):
     integration_count = _dem_integration_commit(item)
 
     if _la_nhieu(suspicious_count, commit_count, minimum=2, ratio=0.3):
-        return f"Quality {quality_score:.1f}, có nhiều commit cần xem lại."
-    if quality_score >= 75:
-        return f"Quality {quality_score:.1f}, đóng góp có chất lượng tốt."
+        return f"Đạt {final_score:.1f}/10, có nhiều commit cần xem lại."
+    if quality_score >= 7.5:
+        return f"Đạt {final_score:.1f}/10, chất lượng commit tốt."
     if _la_nhieu(integration_count, commit_count):
-        return f"Quality {quality_score:.1f}, nổi bật ở vai trò tích hợp hệ thống."
+        return f"Đạt {final_score:.1f}/10, nổi bật ở vai trò tích hợp hệ thống."
     if _la_nhieu(core_code_count, commit_count):
-        return f"Quality {quality_score:.1f}, đóng góp tốt vào code chính."
+        return f"Đạt {final_score:.1f}/10, đóng góp tốt vào code chính."
     if _la_nhieu(documentation_count, commit_count):
-        return f"Quality {quality_score:.1f}, đóng góp thiên về tài liệu/báo cáo."
-    return f"Quality {quality_score:.1f}, cần tăng tác động kỹ thuật."
+        return f"Đạt {final_score:.1f}/10, đóng góp thiên về tài liệu/báo cáo."
+    return f"Đạt {final_score:.1f}/10, cần tăng tác động kỹ thuật."
 
 
 def tao_nhan_xet_don_gian(danh_sach_xep_hang):
@@ -330,7 +361,16 @@ def tao_nhan_xet_don_gian(danh_sach_xep_hang):
 
     for item in danh_sach_xep_hang:
         thong_tin_moi = item.copy()
-        final_score = _lay_so(thong_tin_moi, "final_score", "score")
+        thong_tin_moi.setdefault(
+            "quality_score_display",
+            _diem_hien_thi(_lay_so(thong_tin_moi, "quality_score")),
+        )
+        thong_tin_moi.setdefault("penalty_score_display", _lay_diem_tru_hien_thi(thong_tin_moi))
+        thong_tin_moi.setdefault(
+            "final_score_display",
+            _diem_hien_thi(_lay_so(thong_tin_moi, "final_score", "score")),
+        )
+        final_score = _lay_so(thong_tin_moi, "final_score_display")
         contribution_level = xac_dinh_muc_dong_gop(final_score)
         contribution_type = xac_dinh_loai_dong_gop(thong_tin_moi)
 
@@ -348,14 +388,15 @@ def tao_tong_ket_repo(danh_sach_xep_hang):
     if not danh_sach_xep_hang:
         return "Không có dữ liệu để đánh giá."
 
-    average_quality = sum(_lay_so(item, "quality_score") for item in danh_sach_xep_hang) / len(
-        danh_sach_xep_hang
-    )
+    average_quality = sum(
+        _lay_diem_hien_thi(item, "quality_score_display", "quality_score")
+        for item in danh_sach_xep_hang
+    ) / len(danh_sach_xep_hang)
     suspicious_count = sum(
         _lay_so_nguyen(item, "suspicious_commit_count") for item in danh_sach_xep_hang
     )
 
-    if average_quality >= 75 and suspicious_count == 0:
+    if average_quality >= 7.5 and suspicious_count == 0:
         return "Repository có chất lượng đóng góp khá tốt, chưa thấy commit đáng nghi nổi bật."
     if suspicious_count > 0:
         return "Repository có một số commit cần xem lại về message, loại file hoặc ý nghĩa thay đổi."
@@ -368,7 +409,7 @@ def tao_nhan_xet_ai_rule_based(ket_qua_phan_tich):
     overview = ket_qua_phan_tich.get("overview", {})
     ignored_count = overview.get("ignored_commit_count", 0)
     normalized_note = (
-        "Hệ thống đã chuẩn hóa contributor theo GitHub login, alias, author name/email "
+        "Hệ thống đã chuẩn hóa contributor theo GitHub login và author name/email "
         "để tránh tách sai cùng một người."
     )
     ignored_note = (
@@ -387,14 +428,20 @@ def tao_nhan_xet_ai_rule_based(ket_qua_phan_tich):
         )
 
     top = contributors[0]
-    average_quality = overview.get("average_quality_score", 0)
+    average_quality = overview.get(
+        "average_quality_score_display",
+        _diem_hien_thi(overview.get("average_quality_score", 0)),
+    )
     suspicious_count = overview.get("suspicious_commit_count", 0)
+    top_final_score = top.get("final_score_display", _diem_hien_thi(top.get("final_score", 0)))
+    top_quality_score = top.get("quality_score_display", _diem_hien_thi(top.get("quality_score", 0)))
+    top_penalty_score = top.get("penalty_score_display", _diem_tru_hien_thi(top.get("penalty_score", 0)))
 
     tong_quan = (
         f"Repository {overview.get('repo_full_name', '')} có "
         f"{overview.get('contributor_count', 0)} contributor trong "
         f"{overview.get('analyzed_commit_count', 0)} commit đã phân tích. "
-        f"Điểm chất lượng trung bình là {average_quality:.2f}, "
+        f"Điểm chất lượng trung bình là {average_quality:.1f}/10, "
         f"số commit cần xem lại là {suspicious_count}."
     )
 
@@ -402,9 +449,9 @@ def tao_nhan_xet_ai_rule_based(ket_qua_phan_tich):
 
     noi_bat = (
         f"Contributor có điểm cao nhất là {top.get('contributor', 'Không xác định')} "
-        f"với final_score {top.get('final_score', 0):.2f}, "
-        f"quality_score {top.get('quality_score', 0):.2f}, "
-        f"penalty_score {top.get('penalty_score', 0):.2f}."
+        f"với điểm cuối {top_final_score:.1f}/10, "
+        f"điểm chất lượng {top_quality_score:.1f}/10, "
+        f"điểm trừ {top_penalty_score:.1f}/10."
     )
 
     if suspicious_count > 0:
