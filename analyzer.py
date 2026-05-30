@@ -109,6 +109,43 @@ TECHNICAL_WORDS = {
     "handler",
     "validation",
 }
+INITIAL_COMMIT_MESSAGES = {"initial commit"}
+GENERIC_DOCUMENT_MESSAGES = {
+    "readme",
+    "update readme",
+    "update readme.md",
+    "report",
+    "update report",
+    "update report.md",
+}
+DOCUMENTATION_DETAIL_WORDS = {
+    "algorithm",
+    "analysis",
+    "api",
+    "architecture",
+    "config",
+    "contributor",
+    "database",
+    "deploy",
+    "evaluate",
+    "example",
+    "export",
+    "feature",
+    "github",
+    "guide",
+    "install",
+    "logic",
+    "metric",
+    "quality",
+    "report",
+    "requirement",
+    "score",
+    "setup",
+    "test",
+    "usage",
+    "validation",
+    "workflow",
+}
 INTEGRATION_MESSAGE_PREFIXES = (
     "merge pull request ",
     "merge branch ",
@@ -161,6 +198,64 @@ def _la_message_tich_hop(message):
         normalized.startswith(prefix)
         for prefix in INTEGRATION_MESSAGE_PREFIXES
     )
+
+
+def _la_message_tai_lieu_chung_chung(message):
+    normalized = _normalize_text(_first_line(message))
+    if normalized in GENERIC_DOCUMENT_MESSAGES:
+        return True
+    words = normalized.split()
+    return (
+        len(words) <= 3
+        and "update" in words
+        and any(word.startswith(("readme", "report", "doc")) for word in words)
+    )
+
+
+def _phan_tich_commit_tai_lieu(commit, file_stats):
+    is_documentation_commit = bool(file_stats["document_files"]) and not file_stats["source_files"]
+    if not is_documentation_commit:
+        return {
+            "is_documentation_commit": False,
+            "is_meaningful_documentation_commit": False,
+        }
+
+    files_detail = commit.get("files_detail") or []
+    added_doc_lines = 0
+    added_doc_chars = 0
+    has_detail_keyword = False
+
+    for file_info in files_detail:
+        if phan_loai_file(file_info.get("filename", "")) != "document":
+            continue
+
+        patch = file_info.get("patch", "") or ""
+        for line in patch.splitlines():
+            if not line.startswith("+") or line.startswith("+++"):
+                continue
+
+            content = line[1:].strip()
+            if not content:
+                continue
+
+            added_doc_lines += 1
+            added_doc_chars += len(content)
+            normalized_line = _normalize_text(content)
+            if any(word in normalized_line.split() for word in DOCUMENTATION_DETAIL_WORDS):
+                has_detail_keyword = True
+
+    document_changes = file_stats["document_changes"]
+    is_meaningful = (
+        document_changes >= 12
+        or added_doc_lines >= 8
+        or added_doc_chars >= 240
+        or (has_detail_keyword and added_doc_lines >= 3)
+    )
+
+    return {
+        "is_documentation_commit": True,
+        "is_meaningful_documentation_commit": is_meaningful,
+    }
 
 
 def _phan_tich_commit_tich_hop(commit, file_stats):
@@ -336,6 +431,11 @@ def danh_gia_commit_message(message):
 
     if is_integration_message:
         score = 84.0
+    elif normalized in INITIAL_COMMIT_MESSAGES:
+        score = 62.0
+    elif _la_message_tai_lieu_chung_chung(first_line):
+        score = 55.0
+        reasons.append("commit message tài liệu còn chung chung")
     elif normalized in SUSPICIOUS_EXACT_MESSAGES:
         score = 25.0
         reasons.append("commit message quá chung chung")
@@ -372,6 +472,7 @@ def danh_gia_y_nghia_thay_doi(commit, file_stats):
     files_detail = commit.get("files_detail") or []
     logic_count, changed_lines, non_empty_changed_lines = _dem_dong_logic(files_detail)
     integration_info = _phan_tich_commit_tich_hop(commit, file_stats)
+    documentation_info = _phan_tich_commit_tai_lieu(commit, file_stats)
     reasons = []
 
     if total_changes <= 0:
@@ -392,8 +493,11 @@ def danh_gia_y_nghia_thay_doi(commit, file_stats):
     if logic_count > 0:
         score += min(12, logic_count * 3)
     if file_stats["document_files"] and not file_stats["source_files"]:
-        score -= 18
-        reasons.append("commit chủ yếu sửa tài liệu/báo cáo")
+        if documentation_info["is_meaningful_documentation_commit"]:
+            score = max(score, 60.0)
+        else:
+            score -= 18
+            reasons.append("commit tài liệu/báo cáo thay đổi ít hoặc thiếu nội dung mô tả")
     if file_stats["generated_files"]:
         score -= 25
         reasons.append("commit có sửa file môi trường hoặc file tự động sinh")
@@ -408,15 +512,16 @@ def danh_gia_y_nghia_thay_doi(commit, file_stats):
             if reason
             not in {
                 "commit không có thay đổi additions/deletions đáng kể",
-                "commit chủ yếu sửa tài liệu/báo cáo",
+                "commit tài liệu/báo cáo thay đổi ít hoặc thiếu nội dung mô tả",
             }
         ]
 
     return _clamp(score), reasons
 
 
-def danh_gia_tac_dong_code(file_stats, integration_info=None):
+def danh_gia_tac_dong_code(file_stats, integration_info=None, documentation_info=None):
     integration_info = integration_info or {}
+    documentation_info = documentation_info or {}
     reasons = []
     source_count = len(file_stats["source_files"])
     doc_count = len(file_stats["document_files"])
@@ -426,8 +531,11 @@ def danh_gia_tac_dong_code(file_stats, integration_info=None):
     if source_count:
         score = 70.0 + min(25.0, source_count * 6)
     elif doc_count and not generated_count:
-        score = 38.0
-        reasons.append("commit thiên về tài liệu/báo cáo")
+        if documentation_info.get("is_meaningful_documentation_commit"):
+            score = 58.0
+        else:
+            score = 38.0
+            reasons.append("commit tài liệu/báo cáo nhỏ, tác động kỹ thuật thấp")
     elif generated_count and not source_count:
         score = 12.0
         reasons.append("commit chủ yếu sửa file rác/môi trường local")
@@ -446,7 +554,7 @@ def danh_gia_tac_dong_code(file_stats, integration_info=None):
         reasons = [
             reason
             for reason in reasons
-            if reason != "commit thiên về tài liệu/báo cáo"
+            if reason != "commit tài liệu/báo cáo nhỏ, tác động kỹ thuật thấp"
         ]
 
     return _clamp(score), reasons
@@ -456,9 +564,27 @@ def danh_gia_chat_luong_commit(commit):
     """Tra ve diem chat luong va ly do commit dang nghi neu co."""
     file_stats = _thong_ke_file_commit(commit)
     integration_info = _phan_tich_commit_tich_hop(commit, file_stats)
+    documentation_info = _phan_tich_commit_tai_lieu(commit, file_stats)
     message_score, message_reasons = danh_gia_commit_message(commit.get("message", ""))
     meaningful_score, meaningful_reasons = danh_gia_y_nghia_thay_doi(commit, file_stats)
-    code_impact_score, code_reasons = danh_gia_tac_dong_code(file_stats, integration_info)
+    code_impact_score, code_reasons = danh_gia_tac_dong_code(
+        file_stats,
+        integration_info,
+        documentation_info,
+    )
+
+    if documentation_info["is_meaningful_documentation_commit"]:
+        message_score = max(message_score, 62.0)
+        meaningful_score = max(meaningful_score, 60.0)
+        message_reasons = [
+            reason
+            for reason in message_reasons
+            if reason
+            not in {
+                "commit message tài liệu còn chung chung",
+                "commit message quá ngắn",
+            }
+        ]
 
     suspicious_reasons = []
     suspicious_reasons.extend(message_reasons)
@@ -478,6 +604,7 @@ def danh_gia_chat_luong_commit(commit):
         file_stats["document_files"]
         and not file_stats["source_files"]
         and not integration_info["is_valid_integration_commit"]
+        and not documentation_info["is_meaningful_documentation_commit"]
     ):
         penalty += 4
 
@@ -504,6 +631,10 @@ def danh_gia_chat_luong_commit(commit):
         "is_integration_commit": integration_info["is_integration_commit"],
         "is_valid_integration_commit": integration_info["is_valid_integration_commit"],
         "integration_reasons": integration_info["integration_reasons"],
+        "is_documentation_commit": documentation_info["is_documentation_commit"],
+        "is_meaningful_documentation_commit": documentation_info[
+            "is_meaningful_documentation_commit"
+        ],
         "source_file_count": len(file_stats["source_files"]),
         "document_file_count": len(file_stats["document_files"]),
         "generated_file_count": len(file_stats["generated_files"]),
