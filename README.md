@@ -53,6 +53,7 @@
 ├── ai_summary.py          # Sinh nhận xét rule-based AI bằng tiếng Việt
 ├── main_window.py         # Logic giao diện PyQt6
 ├── main_window.ui         # Layout giao diện Qt Designer
+├── assets/                # Tài nguyên giao diện, gồm app_icon.ico
 ├── chart_widget.py        # Biểu đồ Matplotlib trong dashboard
 ├── report_generator.py    # Xuất báo cáo Markdown/CSV/PDF
 ├── requirements.txt       # Danh sách thư viện cần cài
@@ -156,8 +157,17 @@ build_exe.bat
 
 Lệnh thủ công tương đương:
 
-```bash
-pyinstaller --noconfirm --clean --windowed --name "GitHub Contribution AI" --add-data "main_window.ui;." --hidden-import "matplotlib.backends.backend_qtagg" app.py
+```bat
+pyinstaller ^
+  --noconfirm ^
+  --clean ^
+  --windowed ^
+  --name "GitHub Contribution AI" ^
+  --icon "assets/app_icon.ico" ^
+  --add-data "main_window.ui;." ^
+  --add-data "assets;assets" ^
+  --hidden-import "matplotlib.backends.backend_qtagg" ^
+  app.py
 ```
 
 Sau khi build, file exe nằm tại:
@@ -167,6 +177,10 @@ dist/GitHub Contribution AI/GitHub Contribution AI.exe
 ```
 
 Trong project này, `main_window.ui` được load qua hàm `resource_path()` để chạy đúng cả khi chạy source và khi đóng gói bằng PyInstaller. Thư mục `reports/` được tự tạo khi ứng dụng chạy nếu chưa tồn tại.
+
+Icon ứng dụng và logo file exe nằm tại `assets/app_icon.ico`. Muốn đổi logo exe thì thay file này, sau đó build lại bằng `build_exe.bat`.
+
+Không đóng gói file `.env` vào exe; chỉ nhập cấu hình môi trường ở máy chạy ứng dụng.
 
 ## 9. Hướng Phát Triển
 
