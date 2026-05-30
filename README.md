@@ -1,134 +1,142 @@
 # Hệ thống đánh giá đóng góp GitHub bằng AI
 
-Ứng dụng desktop Python dùng **PyQt6**, **GitHub API**, **Matplotlib**, **ReportLab** và **PyInstaller** để phân tích mức độ đóng góp của thành viên trong một repository GitHub.
+## 1. Giới thiệu
 
-Hệ thống lấy commit từ GitHub, chuẩn hóa contributor, chấm điểm theo nhiều tiêu chí, phát hiện commit cần xem lại, tạo nhận xét AI rule-based bằng tiếng Việt và xuất báo cáo Markdown/CSV/PDF.
+Đây là ứng dụng Python dùng để phân tích commit trong một GitHub repository và đánh giá mức độ đóng góp của từng thành viên trong nhóm.
 
-## Chức năng chính
+Hệ thống không chỉ dựa vào số commit hoặc số dòng code, mà còn đánh giá theo nhiều tiêu chí như chất lượng commit, mức độ ảnh hưởng của file, độ đều đóng góp, thời gian code ước tính và commit cần xem lại.
 
-- Nhập GitHub URL hoặc Owner/Repository.
-- Lấy và chuẩn hóa dữ liệu commit qua GitHub REST API.
-- Gom contributor theo GitHub login, author name và email.
-- Loại commit bot khỏi điểm chính.
-- Chấm điểm đóng góp theo commit, khối lượng thay đổi, loại file, chất lượng commit, độ đều, thời gian code ước tính, vai trò tích hợp và điểm trừ.
-- Hiển thị dashboard PyQt6 gồm bảng contributor, biểu đồ và bảng commit cần xem lại.
-- Sinh nhận xét AI rule-based, không bắt buộc dùng AI API thật.
-- Xuất báo cáo Markdown, CSV, PDF vào `reports/`.
-- Build được file `.exe` bằng PyInstaller.
+Ứng dụng có giao diện PyQt6, biểu đồ trực quan, nhận xét AI rule-based và hỗ trợ xuất báo cáo Markdown, CSV, PDF.
 
-## Cấu trúc project
+## 2. Đề tài
 
-```text
-.
-|-- app.py
-|-- requirements.txt
-|-- build_exe.bat
-|-- README.md
-|-- .gitignore
-|-- assets/
-|   |-- app_icon.ico
-|   `-- app_icon.png
-|-- core/
-|   |-- analyzer.py
-|   `-- ai_summary.py
-|-- services/
-|   `-- github_client.py
-|-- ui/
-|   |-- main_window.py
-|   |-- main_window.ui
-|   `-- chart_widget.py
-|-- exporters/
-|   `-- report_generator.py
-|-- storage/
-|   `-- db_manager.py
-`-- utils/
-    |-- path_utils.py
-    `-- constants.py
-```
+**Xây dựng hệ thống phân tích và đánh giá mức độ đóng góp của thành viên trong dự án GitHub sử dụng Python và AI**
 
-Vai trò chính:
+## 3. Thành viên nhóm
 
-- `app.py`: entry point, chạy GUI hoặc CLI.
-- `core/`: phân tích commit, tính điểm và tạo nhận xét AI rule-based.
-- `services/`: gọi GitHub API và chuẩn hóa dữ liệu thô.
-- `ui/`: giao diện PyQt6, file `.ui` và biểu đồ Matplotlib.
-- `exporters/`: xuất Markdown, CSV, PDF.
-- `storage/`: module lưu lịch sử dự phòng.
-- `utils/`: helper đường dẫn và hằng số dùng chung.
+| Thành viên | Vai trò |
+|---|---|
+| Cường | Trưởng nhóm, thuật toán, tích hợp hệ thống |
+| Bình | GitHub API, chuẩn hóa contributor, lọc bot |
+| Ngọc Linh | Giao diện, dashboard, biểu đồ |
+| Ngọc Anh | Nhận xét AI, báo cáo, tài liệu |
 
-## Cài đặt
+## 4. Chức năng chính
 
-```bash
-python -m venv .venv
-.venv\Scripts\activate
-pip install -r requirements.txt
-```
+- Nhập GitHub URL hoặc owner/repository.
+- Lấy dữ liệu commit từ GitHub API.
+- Chuẩn hóa contributor, tránh tách sai cùng một người.
+- Lọc bot và commit tự động.
+- Chấm điểm đóng góp theo thang 1-10.
+- Đánh giá chất lượng commit và chất lượng thay đổi code.
+- Ước tính thời gian code từ lịch sử commit.
+- Phát hiện commit cần xem lại.
+- Hiển thị dashboard, bảng thành viên và biểu đồ.
+- Tạo nhận xét AI rule-based bằng tiếng Việt.
+- Xuất báo cáo Markdown, CSV, PDF.
+- Build thành file `.exe` chạy trên Windows.
 
-Tạo `.env` từ `.env.example` nếu muốn cấu hình sẵn:
+## 5. Công nghệ sử dụng
 
-```env
-GITHUB_TOKEN=
-GITHUB_REPO_URL=
-REPO_OWNER=
-REPO_NAME=
-SO_LUONG_COMMIT=30
-AI_API_KEY=
-```
+- Python
+- PyQt6
+- GitHub REST API
+- Matplotlib
+- ReportLab
+- python-dotenv
+- PyInstaller
 
-`GITHUB_TOKEN` không bắt buộc với repository public, nhưng nên dùng để tăng giới hạn gọi API. Không hardcode token hoặc API key trong source code.
-
-## Chạy ứng dụng
-
-Chạy GUI:
-
-```bash
-python app.py
-```
-
-Chạy CLI để tạo `report.md`:
-
-```bash
-python app.py --cli
-```
-
-Khi xuất báo cáo từ GUI, thư mục `reports/` sẽ được tự tạo nếu chưa tồn tại.
-
-## Build exe
-
-```bat
-build_exe.bat
-```
-
-File exe sau khi build:
+## 6. Cấu trúc project
 
 ```text
-dist/GitHub Contribution AI/GitHub Contribution AI.exe
-```
+project/
+├── app.py                  # File chạy chính
+├── requirements.txt        # Danh sách thư viện
+├── build_exe.bat           # Script build file exe
+├── README.md               # Tài liệu project
+│
+├── core/                   # Logic phân tích và AI rule-based
+│   ├── analyzer.py
+│   └── ai_summary.py
+│
+├── services/               # Kết nối GitHub API
+│   └── github_client.py
+│
+├── ui/                     # Giao diện và biểu đồ
+│   ├── main_window.py
+│   ├── main_window.ui
+│   └── chart_widget.py
+│
+├── exporters/              # Xuất báo cáo
+│   └── report_generator.py
+│
+├── utils/                  # Hàm tiện ích
+│   └── path_utils.py
+│
+├── assets/                 # Icon ứng dụng
+│   └── app_icon.ico
+│
+└── reports/                # Báo cáo xuất ra
+## 7. Luồng xử lý
 
-`build_exe.bat` đóng gói `ui/main_window.ui` và `assets/`, không đóng gói `.env`. Đường dẫn tài nguyên dùng `utils.path_utils.resource_path()` nên chạy được cả khi chạy source và khi chạy exe.
+Luồng hoạt động chính của hệ thống:
 
-## Công thức điểm
+1. Người dùng nhập GitHub URL hoặc `owner/repository`.
+2. Ứng dụng gọi GitHub API để lấy dữ liệu commit.
+3. Hệ thống chuẩn hóa contributor để tránh tách sai cùng một người.
+4. Bot và commit tự động được lọc khỏi kết quả đánh giá chính.
+5. Các commit được phân tích theo nhiều tiêu chí.
+6. Hệ thống tính điểm đóng góp theo thang **1-10**.
+7. AI rule-based tạo nhận xét tự động bằng tiếng Việt.
+8. Kết quả được hiển thị qua dashboard, bảng thành viên, biểu đồ và báo cáo.
 
-Điểm nội bộ dùng thang 0-100, điểm hiển thị dùng thang `/10`.
+---
+
+## 8. Thuật toán đánh giá
+
+Hệ thống đánh giá contributor theo nhiều tiêu chí khác nhau, không chỉ dựa vào số commit hoặc số dòng code.
+
+| Tiêu chí | Ý nghĩa |
+|---|---|
+| `commit_score` | Điểm dựa trên số commit |
+| `code_volume_score` | Điểm dựa trên số dòng thêm/xóa |
+| `file_impact_score` | Điểm theo mức độ quan trọng của file được sửa |
+| `quality_score` | Điểm chất lượng commit và thay đổi code |
+| `consistency_score` | Điểm độ đều đóng góp theo thời gian |
+| `estimated_time_score` | Điểm thời gian code ước tính |
+| `integration_score` | Điểm vai trò tích hợp hệ thống |
+| `penalty_score` | Điểm trừ cho commit kém chất lượng |
+
+Công thức tổng quát:
 
 ```text
-raw_score =
-    0.10 * commit_score
-  + 0.15 * code_volume_score
-  + 0.15 * file_impact_score
-  + 0.25 * quality_score
-  + 0.15 * consistency_score
-  + 0.10 * estimated_time_score
-  + 0.10 * integration_score
+final_score =
+  commit_score
++ code_volume_score
++ file_impact_score
++ quality_score
++ consistency_score
++ estimated_time_score
++ integration_score
+- penalty_score
+## 9. Commit cần xem lại
 
-final_score_100 = clamp(raw_score - penalty_score, 0, 100)
-display_score_10 = round(final_score_100 / 10, 1)
-```
+Một commit có thể bị đánh dấu là **cần xem lại** nếu có dấu hiệu chưa rõ ràng hoặc chưa phản ánh đúng đóng góp kỹ thuật.
 
-`penalty_score` trừ điểm cho commit quá nhỏ, message chung chung, file local/generated hoặc tỷ lệ commit cần xem lại cao.
+Các trường hợp thường bị đánh dấu:
 
-## Báo cáo và bảo mật
+- Commit message quá ngắn hoặc quá chung chung.
+- Commit chỉ ghi các từ như `test`, `update`, `fix`, `demo`, `final`, `tmp`.
+- Commit chỉ sửa file tự động sinh, file local hoặc file môi trường.
+- Commit chỉ sửa báo cáo/tài liệu với thay đổi quá nhỏ.
+- Commit có số dòng thay đổi rất ít và không thể hiện rõ ý nghĩa.
+- Commit do bot hoặc công cụ tự động tạo ra.
 
-- Báo cáo xuất ra `reports/` hoặc `report.md` khi chạy CLI.
-- `.env`, `.venv/`, `build/`, `dist/`, `reports/`, database local và report tự sinh không đưa vào Git.
-- `.env.example` chỉ là file mẫu, không chứa secret.
+Ví dụ commit cần xem lại:
+
+```text
+update
+test
+final
+auto update report
+fix
