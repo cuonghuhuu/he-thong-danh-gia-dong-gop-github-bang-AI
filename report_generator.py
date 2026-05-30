@@ -75,6 +75,12 @@ def _lay_penalty_hien_thi(item):
     return _diem_tru_hien_thi(item.get("penalty_score", 0))
 
 
+def _lay_diem_hien_thi_item(item, display_key, raw_key):
+    if display_key in item and item.get(display_key) is not None:
+        return _lay_float(item.get(display_key))
+    return _diem_hien_thi(item.get(raw_key, 0))
+
+
 def _lay_overview_diem_hien_thi(overview, display_key, raw_key):
     if display_key in overview and overview.get(display_key) is not None:
         return _lay_float(overview.get(display_key))
@@ -142,7 +148,13 @@ def tao_bang_markdown(contributors):
         "Dòng thêm",
         "Dòng xoá",
         "File đã sửa",
+        "Giờ code ước tính",
+        "Ngày hoạt động",
+        "Phiên làm việc",
         "Điểm chất lượng /10",
+        "Điểm thời gian /10",
+        "Consistency /10",
+        "Integration /10",
         "Điểm trừ /10",
         "Commit cần xem lại",
         "Điểm cuối /10",
@@ -162,7 +174,13 @@ def tao_bang_markdown(contributors):
             item.get("total_additions", item.get("additions", 0)),
             item.get("total_deletions", item.get("deletions", 0)),
             _lay_files(item),
+            f"{_lay_float(item.get('estimated_coding_hours')):.1f}",
+            item.get("active_days", 0),
+            item.get("coding_sessions", 0),
             f"{_lay_quality_hien_thi(item):.1f}",
+            f"{_lay_diem_hien_thi_item(item, 'estimated_time_score_display', 'estimated_time_score'):.1f}",
+            f"{_lay_diem_hien_thi_item(item, 'consistency_score_display', 'consistency_score'):.1f}",
+            f"{_lay_diem_hien_thi_item(item, 'integration_score_display', 'integration_score'):.1f}",
             f"{_lay_penalty_hien_thi(item):.1f}",
             item.get("suspicious_commit_count", 0),
             f"{_lay_score_hien_thi(item):.1f}",
@@ -222,6 +240,8 @@ def _tao_dong_thong_ke_bieu_do(contributors):
                 item.get("suspicious_commit_count", 0),
                 item.get("total_additions", item.get("additions", 0)),
                 item.get("total_deletions", item.get("deletions", 0)),
+                _lay_float(item.get("estimated_coding_hours")),
+                item.get("active_days", 0),
             )
         )
 
@@ -230,12 +250,16 @@ def _tao_dong_thong_ke_bieu_do(contributors):
     top_suspicious = max(rows, key=lambda row: row[4])
     total_additions = sum(row[5] for row in rows)
     total_deletions = sum(row[6] for row in rows)
+    total_hours = sum(row[7] for row in rows)
+    max_active = max(rows, key=lambda row: row[8])
 
     return [
         f"Điểm cuối cao nhất: {top_final[0]} ({top_final[1]:.1f}/10).",
         f"Điểm chất lượng cao nhất: {top_quality[0]} ({top_quality[2]:.1f}/10).",
         f"Commit cần xem lại nhiều nhất: {top_suspicious[0]} ({top_suspicious[4]} commit).",
         f"Tổng dòng thêm/xoá: +{total_additions} / -{total_deletions}.",
+        f"Tổng giờ code ước tính: {total_hours:.1f} giờ.",
+        f"Số ngày hoạt động nhiều nhất: {max_active[0]} ({max_active[8]} ngày).",
         "Điểm trừ trong báo cáo là mức 0-10 chuẩn hóa từ penalty nội bộ tối đa 30 điểm.",
     ]
 
@@ -294,6 +318,8 @@ def tao_bao_cao_markdown(ket_qua_phan_tich, tong_ket_repo=None):
         f"- Tổng deletions: {overview.get('total_deletions', 0)}",
         "- Điểm chất lượng trung bình: "
         f"{_lay_overview_diem_hien_thi(overview, 'average_quality_score_display', 'average_quality_score'):.1f}/10",
+        f"- Tổng giờ code ước tính: {_lay_float(overview.get('total_estimated_coding_hours')):.1f}",
+        f"- Tổng phiên làm việc: {overview.get('total_coding_sessions', 0)}",
         f"- Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
         f"- Số commit bot đã loại: {overview.get('ignored_bot_commit_count', 0)}",
         f"- Số commit tự động đã loại: {overview.get('ignored_auto_commit_count', 0)}",
@@ -302,12 +328,15 @@ def tao_bao_cao_markdown(ket_qua_phan_tich, tong_ket_repo=None):
         "## Công thức điểm",
         "",
         "```text",
-        "final_score = 0.20 * commit_score",
-        "            + 0.20 * code_volume_score",
-        "            + 0.20 * file_impact_score",
-        "            + 0.25 * quality_score",
-        "            + 0.15 * consistency_score",
-        "            - penalty_score",
+        "raw_score = 0.10 * commit_score",
+        "          + 0.15 * code_volume_score",
+        "          + 0.15 * file_impact_score",
+        "          + 0.25 * quality_score",
+        "          + 0.15 * consistency_score",
+        "          + 0.10 * estimated_time_score",
+        "          + 0.10 * integration_score",
+        "",
+        "final_score = raw_score - penalty_score",
         "```",
         "",
         "Điểm chất lượng và điểm cuối hiển thị theo thang /10. Điểm trừ hiển thị theo thang 0-10, chuẩn hóa từ penalty nội bộ tối đa 30 điểm.",
@@ -360,7 +389,13 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
                 "Dòng thêm",
                 "Dòng xoá",
                 "File đã sửa",
+                "Giờ code ước tính",
+                "Ngày hoạt động",
+                "Phiên làm việc",
                 "Điểm chất lượng /10",
+                "Điểm thời gian /10",
+                "Consistency /10",
+                "Integration /10",
                 "Điểm trừ /10",
                 "Commit cần xem lại",
                 "Điểm cuối /10",
@@ -379,7 +414,13 @@ def xuat_csv(ket_qua_phan_tich, reports_dir):
                     item.get("total_additions", item.get("additions", 0)),
                     item.get("total_deletions", item.get("deletions", 0)),
                     _lay_files(item),
+                    f"{_lay_float(item.get('estimated_coding_hours')):.1f}",
+                    item.get("active_days", 0),
+                    item.get("coding_sessions", 0),
                     f"{_lay_quality_hien_thi(item):.1f}",
+                    f"{_lay_diem_hien_thi_item(item, 'estimated_time_score_display', 'estimated_time_score'):.1f}",
+                    f"{_lay_diem_hien_thi_item(item, 'consistency_score_display', 'consistency_score'):.1f}",
+                    f"{_lay_diem_hien_thi_item(item, 'integration_score_display', 'integration_score'):.1f}",
                     f"{_lay_penalty_hien_thi(item):.1f}",
                     item.get("suspicious_commit_count", 0),
                     f"{_lay_score_hien_thi(item):.1f}",
@@ -552,6 +593,8 @@ def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
             f"Tổng contributor: {overview.get('contributor_count', 0)}",
             "Điểm chất lượng trung bình: "
             f"{_lay_overview_diem_hien_thi(overview, 'average_quality_score_display', 'average_quality_score'):.1f}/10",
+            f"Tổng giờ code ước tính: {_lay_float(overview.get('total_estimated_coding_hours')):.1f}",
+            f"Tổng phiên làm việc: {overview.get('total_coding_sessions', 0)}",
             f"Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
             "Điểm trừ hiển thị theo thang 0-10, chuẩn hóa từ penalty nội bộ tối đa 30 điểm.",
             "",
@@ -563,6 +606,11 @@ def _xuat_pdf_bang_matplotlib(ket_qua_phan_tich, path):
                 f"add={item.get('total_additions', item.get('additions', 0))} | "
                 f"del={item.get('total_deletions', item.get('deletions', 0))} | "
                 f"files={_lay_files(item)} | quality={_lay_quality_hien_thi(item):.1f}/10 | "
+                f"hours={_lay_float(item.get('estimated_coding_hours')):.1f} | "
+                f"days={item.get('active_days', 0)} | sessions={item.get('coding_sessions', 0)} | "
+                f"time={_lay_diem_hien_thi_item(item, 'estimated_time_score_display', 'estimated_time_score'):.1f}/10 | "
+                f"consistency={_lay_diem_hien_thi_item(item, 'consistency_score_display', 'consistency_score'):.1f}/10 | "
+                f"integration={_lay_diem_hien_thi_item(item, 'integration_score_display', 'integration_score'):.1f}/10 | "
                 f"penalty={_lay_penalty_hien_thi(item):.1f}/10 | "
                 f"suspicious={item.get('suspicious_commit_count', 0)} | "
                 f"final={_lay_score_hien_thi(item):.1f}/10 | mức={item.get('contribution_level', '')}"
@@ -666,6 +714,8 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
         f"Tổng deletions: {overview.get('total_deletions', 0)}",
         "Điểm chất lượng trung bình: "
         f"{_lay_overview_diem_hien_thi(overview, 'average_quality_score_display', 'average_quality_score'):.1f}/10",
+        f"Tổng giờ code ước tính: {_lay_float(overview.get('total_estimated_coding_hours')):.1f}",
+        f"Tổng phiên làm việc: {overview.get('total_coding_sessions', 0)}",
         f"Số commit cần xem lại: {overview.get('suspicious_commit_count', 0)}",
         f"Số commit bot đã loại: {overview.get('ignored_bot_commit_count', 0)}",
         f"Số commit tự động đã loại: {overview.get('ignored_auto_commit_count', 0)}",
@@ -685,7 +735,13 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
             _paragraph("Additions", table_header),
             _paragraph("Deletions", table_header),
             _paragraph("Files", table_header),
+            _paragraph("Hours", table_header),
+            _paragraph("Days", table_header),
+            _paragraph("Sessions", table_header),
             _paragraph("Quality /10", table_header),
+            _paragraph("Time /10", table_header),
+            _paragraph("Cons. /10", table_header),
+            _paragraph("Integr. /10", table_header),
             _paragraph("Penalty /10", table_header),
             _paragraph("Commit cần xem lại", table_header),
             _paragraph("Final /10", table_header),
@@ -702,7 +758,13 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
                 str(item.get("total_additions", item.get("additions", 0))),
                 str(item.get("total_deletions", item.get("deletions", 0))),
                 str(_lay_files(item)),
+                f"{_lay_float(item.get('estimated_coding_hours')):.1f}",
+                str(item.get("active_days", 0)),
+                str(item.get("coding_sessions", 0)),
                 f"{_lay_quality_hien_thi(item):.1f}",
+                f"{_lay_diem_hien_thi_item(item, 'estimated_time_score_display', 'estimated_time_score'):.1f}",
+                f"{_lay_diem_hien_thi_item(item, 'consistency_score_display', 'consistency_score'):.1f}",
+                f"{_lay_diem_hien_thi_item(item, 'integration_score_display', 'integration_score'):.1f}",
                 f"{_lay_penalty_hien_thi(item):.1f}",
                 str(item.get("suspicious_commit_count", 0)),
                 f"{_lay_score_hien_thi(item):.1f}",
@@ -715,17 +777,23 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
         table_data,
         colWidths=[
             0.7 * cm,
-            2.5 * cm,
+            2.0 * cm,
             0.9 * cm,
             1.1 * cm,
             1.1 * cm,
             0.9 * cm,
+            0.9 * cm,
+            0.8 * cm,
+            0.8 * cm,
             1.2 * cm,
+            0.9 * cm,
+            0.9 * cm,
+            0.9 * cm,
             1.1 * cm,
             1.3 * cm,
             1.1 * cm,
-            2.3 * cm,
-            12.4 * cm,
+            2.0 * cm,
+            7.0 * cm,
         ],
         repeatRows=1,
     )
@@ -738,7 +806,7 @@ def xuat_pdf(ket_qua_phan_tich, reports_dir):
                 ("FONTNAME", (0, 1), (-1, -1), font_regular),
                 ("FONTSIZE", (0, 0), (-1, -1), 6.5),
                 ("ALIGN", (0, 0), (0, -1), "CENTER"),
-                ("ALIGN", (2, 1), (9, -1), "RIGHT"),
+                ("ALIGN", (2, 1), (15, -1), "RIGHT"),
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
             ]
         )
