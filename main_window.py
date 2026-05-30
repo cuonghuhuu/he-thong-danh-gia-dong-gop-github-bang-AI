@@ -380,20 +380,20 @@ class MainWindow(QMainWindow):
 
     def _dat_do_rong_cot_contributor(self):
         column_widths = {
-            0: 140,
-            1: 90,
-            2: 100,
-            3: 100,
-            4: 90,
-            5: 130,
-            6: 125,
-            7: 140,
-            8: 130,
-            9: 120,
-            10: 100,
-            11: 160,
-            12: 150,
-            13: 300,
+            0: 155,
+            1: 100,
+            2: 110,
+            3: 110,
+            4: 100,
+            5: 160,
+            6: 155,
+            7: 170,
+            8: 155,
+            9: 135,
+            10: 110,
+            11: 185,
+            12: 165,
+            13: 430,
         }
         for column, width in column_widths.items():
             self.contributorTable.setColumnWidth(column, width)
@@ -445,7 +445,7 @@ class MainWindow(QMainWindow):
                     self.suspiciousCommitTable.setItem(row_index, col, table_item)
 
         self.suspiciousCommitTable.resizeRowsToContents()
-        for column, width in {0: 130, 1: 90, 2: 320, 3: 420, 4: 150}.items():
+        for column, width in {0: 155, 1: 95, 2: 380, 3: 540, 4: 175}.items():
             self.suspiciousCommitTable.setColumnWidth(column, width)
 
     def _kiem_tra_co_ket_qua(self):

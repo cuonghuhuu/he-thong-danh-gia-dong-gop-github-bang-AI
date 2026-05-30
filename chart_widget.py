@@ -25,7 +25,7 @@ def _penalty_display(item):
 
 
 def _short_label(text, max_chars=12):
-    text = str(text or "Không rõ")
+    text = str(text or "unknown")
     return text if len(text) <= max_chars else text[: max_chars - 3] + "..."
 
 
@@ -87,29 +87,42 @@ class ChartWidget(QWidget):
         estimated_hours = [item.get("estimated_coding_hours", 0) for item in data]
         active_days = [item.get("active_days", 0) for item in data]
 
-        axes = self.figure.subplots(3, 3)
-        ax_pie = axes[0][0]
-        ax_quality = axes[0][1]
-        ax_suspicious = axes[0][2]
-        ax_changes = axes[1][0]
-        ax_penalty = axes[1][1]
-        ax_time = axes[1][2]
-        ax_days = axes[2][0]
-        axes[2][1].axis("off")
-        axes[2][2].axis("off")
+        grid = self.figure.add_gridspec(
+            2,
+            4,
+            width_ratios=[1.85, 1.0, 1.0, 1.0],
+            height_ratios=[1.0, 1.0],
+        )
+        ax_pie = self.figure.add_subplot(grid[:, 0])
+        ax_quality = self.figure.add_subplot(grid[0, 1])
+        ax_suspicious = self.figure.add_subplot(grid[0, 2])
+        ax_changes = self.figure.add_subplot(grid[0, 3])
+        ax_penalty = self.figure.add_subplot(grid[1, 1])
+        ax_time = self.figure.add_subplot(grid[1, 2])
+        ax_days = self.figure.add_subplot(grid[1, 3])
 
         total_score = sum(final_scores)
         if total_score > 0:
-            ax_pie.pie(
+            _wedges, labels, autotexts = ax_pie.pie(
                 final_scores,
                 labels=names,
                 autopct="%1.1f%%",
-                textprops={"fontsize": 8},
                 startangle=90,
+                radius=1.25,
+                labeldistance=1.14,
+                pctdistance=0.65,
+                textprops={"fontsize": 8},
+                wedgeprops={"linewidth": 0.8, "edgecolor": "white"},
             )
+            for text in labels:
+                text.set_fontsize(8)
+            for text in autotexts:
+                text.set_fontsize(9)
+                text.set_weight("bold")
         else:
             ax_pie.text(0.5, 0.5, "Chưa có điểm", ha="center", va="center")
-        ax_pie.set_title("Tỷ lệ điểm cuối", fontsize=10, pad=8)
+        ax_pie.set_title("Tỷ lệ điểm cuối", fontsize=12, pad=14)
+        ax_pie.set_aspect("equal")
 
         ax_quality.bar(names, quality_scores, color="#2f7d5c")
         ax_quality.set_ylim(0, 10)
@@ -138,7 +151,7 @@ class ChartWidget(QWidget):
             label="Dòng xoá",
             color="#e69138",
         )
-        _style_axis(ax_changes, "Dòng thêm / dòng xoá", "Số dòng")
+        _style_axis(ax_changes, "Dòng thêm / xoá", "Số dòng")
         ax_changes.set_xticks(x_positions)
         ax_changes.set_xticklabels(names, rotation=25, ha="right", fontsize=9)
         ax_changes.legend(fontsize=8)
@@ -161,11 +174,11 @@ class ChartWidget(QWidget):
         _annotate_bars(ax_days, active_days, fmt="{:.0f}")
 
         self.figure.subplots_adjust(
-            left=0.06,
+            left=0.05,
             right=0.98,
-            top=0.92,
-            bottom=0.10,
+            top=0.90,
+            bottom=0.16,
             wspace=0.35,
-            hspace=0.78,
+            hspace=0.55,
         )
         self.canvas.draw()
