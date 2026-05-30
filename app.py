@@ -13,6 +13,13 @@ DEFAULT_SO_LUONG_COMMIT = 30
 TEN_FILE_BAO_CAO_CI = "report.md"
 
 
+def app_base_dir():
+    """Thu muc chay app: source khi dev, thu muc chua exe khi dong goi."""
+    if getattr(sys, "frozen", False):
+        return Path(sys.executable).resolve().parent
+    return Path(__file__).resolve().parent
+
+
 def lay_so_luong_commit_tu_env():
     try:
         so_luong = int(os.getenv("SO_LUONG_COMMIT", str(DEFAULT_SO_LUONG_COMMIT)))
@@ -51,7 +58,7 @@ def chay_cli():
 
     noi_dung_bao_cao = tao_bao_cao_markdown(ket_qua)
 
-    report_path = Path(__file__).resolve().parent / TEN_FILE_BAO_CAO_CI
+    report_path = app_base_dir() / TEN_FILE_BAO_CAO_CI
     report_path.write_text(noi_dung_bao_cao, encoding="utf-8")
     print(f"Da tao file {report_path}")
 
@@ -71,8 +78,7 @@ def chay_gui():
 
 
 def main():
-    project_dir = Path(__file__).resolve().parent
-    load_dotenv(project_dir / ".env")
+    load_dotenv(app_base_dir() / ".env")
 
     if "--cli" in sys.argv or os.getenv("GITHUB_ACTIONS", "").lower() == "true":
         chay_cli()

@@ -138,6 +138,7 @@ celerybeat.pid
 .env
 .envrc
 .venv
+.venv/
 env/
 venv/
 ENV/
@@ -198,8 +199,9 @@ analysis_history.sqlite3-wal
 *.sqlite3
 *.sqlite3-shm
 *.sqlite3-wal
-reports/*
-!reports/.gitkeep
+*.db
+*.tmp
+reports/
 
 # PyPI configuration file
 .pypirc
