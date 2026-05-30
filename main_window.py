@@ -15,6 +15,7 @@ from PyQt6.QtWidgets import (
 from analyzer import phan_tich_repo
 from chart_widget import ChartWidget
 from db_manager import DatabaseManager
+from github_client import chuan_hoa_owner_repo
 from report_generator import (
     xuat_csv as export_csv_report,
     xuat_markdown as export_markdown_report,
@@ -75,22 +76,25 @@ class MainWindow(QMainWindow):
     def _setup_widgets(self):
         self.tokenInput.setEchoMode(QLineEdit.EchoMode.Password)
         self.tokenInput.setText(os.getenv("GITHUB_TOKEN", ""))
+        self.repoUrlInput.setText(os.getenv("GITHUB_REPO_URL", ""))
         self.ownerInput.setText(os.getenv("REPO_OWNER", ""))
         self.repoInput.setText(os.getenv("REPO_NAME", ""))
         self._nap_so_commit_tu_env()
 
         self.contributorTable.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.contributorTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.contributorTable.setWordWrap(True)
         self.contributorTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.contributorTable.verticalHeader().setVisible(False)
 
-        self.historyTable.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
-        self.historyTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
-        self.historyTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.historyTable.verticalHeader().setVisible(False)
+        if hasattr(self, "historyTable"):
+            self.historyTable.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+            self.historyTable.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+            self.historyTable.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+            self.historyTable.verticalHeader().setVisible(False)
 
         self.aiTextEdit.setReadOnly(True)
-        self.statusbar.showMessage("San sang.")
+        self.statusbar.showMessage("Sẵn sàng.")
 
     def _nap_so_commit_tu_env(self):
         try:
@@ -102,12 +106,14 @@ class MainWindow(QMainWindow):
         self.commitSpinBox.setValue(so_commit)
 
     def _connect_signals(self):
+        self.repoUrlInput.editingFinished.connect(self.tu_dong_dien_owner_repo_tu_url)
         self.analyzeButton.clicked.connect(self.phan_tich)
         self.exportMarkdownButton.clicked.connect(self.xuat_markdown)
         self.exportCsvButton.clicked.connect(self.xuat_csv)
         self.exportPdfButton.clicked.connect(self.xuat_pdf)
         self.saveHistoryButton.clicked.connect(self.luu_lich_su)
-        self.refreshHistoryButton.clicked.connect(self.tai_lich_su)
+        if hasattr(self, "refreshHistoryButton"):
+            self.refreshHistoryButton.clicked.connect(self.tai_lich_su)
 
     def _set_result_buttons_enabled(self, enabled):
         self.exportMarkdownButton.setEnabled(enabled)
@@ -115,19 +121,40 @@ class MainWindow(QMainWindow):
         self.exportPdfButton.setEnabled(enabled)
         self.saveHistoryButton.setEnabled(enabled)
 
-    def phan_tich(self):
-        token = self.tokenInput.text().strip()
-        owner = self.ownerInput.text().strip()
-        repo = self.repoInput.text().strip()
-        so_luong_commit = self.commitSpinBox.value()
-
-        if not owner or not repo:
-            QMessageBox.warning(self, "Thieu thong tin", "Vui long nhap Owner va Repository.")
+    def tu_dong_dien_owner_repo_tu_url(self):
+        repo_url = self.repoUrlInput.text().strip()
+        if not repo_url:
             return
 
+        try:
+            owner, repo = chuan_hoa_owner_repo(repo_url=repo_url)
+        except ValueError:
+            return
+
+        self.ownerInput.setText(owner)
+        self.repoInput.setText(repo)
+
+    def lay_thong_tin_repo_tu_form(self):
+        repo_url = self.repoUrlInput.text().strip()
+        owner = self.ownerInput.text().strip()
+        repo = self.repoInput.text().strip()
+        return chuan_hoa_owner_repo(owner, repo, repo_url=repo_url)
+
+    def phan_tich(self):
+        token = self.tokenInput.text().strip()
+        so_luong_commit = self.commitSpinBox.value()
+
+        try:
+            owner, repo = self.lay_thong_tin_repo_tu_form()
+        except ValueError as exc:
+            QMessageBox.warning(self, "Thiếu thông tin", str(exc))
+            return
+
+        self.ownerInput.setText(owner)
+        self.repoInput.setText(repo)
         self.analyzeButton.setEnabled(False)
         self._set_result_buttons_enabled(False)
-        self.statusbar.showMessage("Dang bat dau phan tich...")
+        self.statusbar.showMessage("Đang bắt đầu phân tích...")
 
         self.worker_thread = QThread(self)
         self.worker = AnalysisWorker(token, owner, repo, so_luong_commit)
@@ -154,8 +181,8 @@ class MainWindow(QMainWindow):
         self.statusbar.showMessage(message)
 
     def hien_thi_loi_phan_tich(self, message):
-        QMessageBox.critical(self, "Loi phan tich", message)
-        self.statusbar.showMessage("Phan tich that bai.")
+        QMessageBox.critical(self, "Lỗi phân tích", message)
+        self.statusbar.showMessage("Phân tích thất bại.")
 
     def hoan_tat_phan_tich(self, ket_qua):
         self.current_result = ket_qua
@@ -166,37 +193,51 @@ class MainWindow(QMainWindow):
         self.chart_widget.update_charts(contributors)
         self.aiTextEdit.setPlainText(ket_qua.get("ai_summary", ""))
         self._set_result_buttons_enabled(True)
-        self.statusbar.showMessage("Phan tich hoan tat.")
-        self.tabWidget.setCurrentWidget(self.dashboardTab)
+        ignored_count = ket_qua.get("overview", {}).get("ignored_commit_count", 0)
+        if ignored_count:
+            self.statusbar.showMessage(
+                f"Phân tích hoàn tất. Đã loại {ignored_count} commit bot/tự động."
+            )
+        else:
+            self.statusbar.showMessage("Phân tích hoàn tất.")
 
     def hien_thi_tong_quan(self, ket_qua):
         overview = ket_qua.get("overview", {})
         self.repoNameLabel.setText(overview.get("repo_full_name", ""))
-        self.totalCommitsLabel.setText(str(overview.get("analyzed_commit_count", 0)))
+        analyzed_commit_count = overview.get("analyzed_commit_count", 0)
+        ignored_commit_count = overview.get("ignored_commit_count", 0)
+        if ignored_commit_count:
+            self.totalCommitsLabel.setText(
+                f"{analyzed_commit_count} (+{ignored_commit_count} loại)"
+            )
+        else:
+            self.totalCommitsLabel.setText(str(analyzed_commit_count))
         self.totalContributorsLabel.setText(str(overview.get("contributor_count", 0)))
         self.totalAdditionsLabel.setText(str(overview.get("total_additions", 0)))
         self.totalDeletionsLabel.setText(str(overview.get("total_deletions", 0)))
-        self.topContributorLabel.setText(
-            f"{overview.get('top_contributor', 'Chua co')} "
-            f"({overview.get('top_score', 0):.2f})"
-        )
-        self.totalScoreLabel.setText(f"{overview.get('total_score', 0):.2f}")
+        self.averageQualityLabel.setText(f"{overview.get('average_quality_score', 0):.2f}")
+        self.suspiciousCommitLabel.setText(str(overview.get("suspicious_commit_count", 0)))
+
+        if hasattr(self, "topContributorLabel"):
+            self.topContributorLabel.setText(
+                f"{overview.get('top_contributor', 'Chưa có')} "
+                f"({overview.get('top_score', 0):.2f})"
+            )
+        if hasattr(self, "totalScoreLabel"):
+            self.totalScoreLabel.setText(f"{overview.get('total_score', 0):.2f}")
 
     def hien_thi_bang_contributor(self, contributors):
         headers = [
-            "STT",
             "Contributor",
-            "So commit",
+            "Commit",
             "Additions",
             "Deletions",
-            "Files changed",
-            "Total changes",
-            "Commit score",
-            "Code score",
-            "File score",
-            "Balance score",
-            "Final score",
-            "Loai dong gop",
+            "Files",
+            "Quality Score",
+            "Penalty",
+            "Final Score",
+            "Mức đánh giá",
+            "Nhận xét ngắn",
         ]
         self.contributorTable.setColumnCount(len(headers))
         self.contributorTable.setHorizontalHeaderLabels(headers)
@@ -204,24 +245,21 @@ class MainWindow(QMainWindow):
 
         for row, item in enumerate(contributors):
             values = [
-                row + 1,
                 item.get("contributor", ""),
                 item.get("commit_count", 0),
                 item.get("total_additions", 0),
                 item.get("total_deletions", 0),
                 item.get("files_changed", item.get("changed_files_count", 0)),
-                item.get("total_changes", 0),
-                f"{item.get('commit_score', 0):.2f}",
-                f"{item.get('code_score', 0):.2f}",
-                f"{item.get('file_score', 0):.2f}",
-                f"{item.get('balance_score', 0):.2f}",
+                f"{item.get('quality_score', 0):.2f}",
+                f"{item.get('penalty_score', 0):.2f}",
                 f"{item.get('final_score', item.get('score', 0)):.2f}",
-                item.get("contribution_type", ""),
+                item.get("contribution_level", ""),
+                item.get("short_summary", item.get("ai_summary", "")),
             ]
 
             for col, value in enumerate(values):
                 table_item = QTableWidgetItem(str(value))
-                if col not in {1, 12}:
+                if col not in {0, 8, 9}:
                     table_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
                 self.contributorTable.setItem(row, col, table_item)
 
@@ -229,7 +267,7 @@ class MainWindow(QMainWindow):
 
     def _kiem_tra_co_ket_qua(self):
         if not self.current_result:
-            QMessageBox.information(self, "Chua co du lieu", "Hay phan tich repository truoc.")
+            QMessageBox.information(self, "Chưa có dữ liệu", "Hãy phân tích repository trước.")
             return False
         return True
 
@@ -240,10 +278,10 @@ class MainWindow(QMainWindow):
         try:
             path = export_markdown_report(self.current_result, self.reports_dir)
         except Exception as exc:
-            QMessageBox.critical(self, "Loi xuat Markdown", str(exc))
+            QMessageBox.critical(self, "Lỗi xuất Markdown", str(exc))
             return
 
-        QMessageBox.information(self, "Da xuat Markdown", f"Da tao file:\n{path}")
+        QMessageBox.information(self, "Đã xuất Markdown", f"Đã tạo file:\n{path}")
 
     def xuat_csv(self):
         if not self._kiem_tra_co_ket_qua():
@@ -252,10 +290,10 @@ class MainWindow(QMainWindow):
         try:
             path = export_csv_report(self.current_result, self.reports_dir)
         except Exception as exc:
-            QMessageBox.critical(self, "Loi xuat CSV", str(exc))
+            QMessageBox.critical(self, "Lỗi xuất CSV", str(exc))
             return
 
-        QMessageBox.information(self, "Da xuat CSV", f"Da tao file:\n{path}")
+        QMessageBox.information(self, "Đã xuất CSV", f"Đã tạo file:\n{path}")
 
     def xuat_pdf(self):
         if not self._kiem_tra_co_ket_qua():
@@ -264,10 +302,10 @@ class MainWindow(QMainWindow):
         try:
             path = export_pdf_report(self.current_result, self.reports_dir)
         except Exception as exc:
-            QMessageBox.critical(self, "Loi xuat PDF", str(exc))
+            QMessageBox.critical(self, "Lỗi xuất PDF", str(exc))
             return
 
-        QMessageBox.information(self, "Da xuat PDF", f"Da tao file:\n{path}")
+        QMessageBox.information(self, "Đã xuất PDF", f"Đã tạo file:\n{path}")
 
     def luu_lich_su(self):
         if not self._kiem_tra_co_ket_qua():
@@ -276,23 +314,26 @@ class MainWindow(QMainWindow):
         try:
             new_id = self.db_manager.luu_lich_su(self.current_result)
         except Exception as exc:
-            QMessageBox.critical(self, "Loi luu lich su", str(exc))
+            QMessageBox.critical(self, "Lỗi lưu lịch sử", str(exc))
             return
 
         self.tai_lich_su()
-        QMessageBox.information(self, "Da luu lich su", f"Da luu lan phan tich ID {new_id}.")
+        QMessageBox.information(self, "Đã lưu lịch sử", f"Đã lưu lần phân tích ID {new_id}.")
 
     def tai_lich_su(self):
+        if not hasattr(self, "historyTable"):
+            return
+
         rows = self.db_manager.lay_lich_su()
         headers = [
             "ID",
-            "Thoi gian",
+            "Thời gian",
             "Owner",
             "Repo",
             "Commit",
             "Contributor",
             "Top contributor",
-            "Tong diem",
+            "Tổng điểm",
             "Additions",
             "Deletions",
         ]
@@ -320,4 +361,3 @@ class MainWindow(QMainWindow):
                 self.historyTable.setItem(row_index, col, table_item)
 
         self.historyTable.resizeRowsToContents()
-

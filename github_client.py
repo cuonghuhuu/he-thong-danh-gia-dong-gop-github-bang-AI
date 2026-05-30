@@ -1,13 +1,32 @@
 import os
+import re
 import time
+import unicodedata
 from datetime import datetime
+from urllib.parse import urlparse
 
 import requests
 
 
 TIMEOUT_GITHUB_API = 15
 SO_COMMIT_TOI_DA_MOI_TRANG = 100
-GITHUB_API_ACCEPT = "application/vnd.github.v3+json"
+GITHUB_API_ACCEPT = "application/vnd.github+json"
+GITHUB_USER_AGENT = "GitHub-Contribution-AI"
+
+CONTRIBUTOR_ALIASES = {
+    "le van cuong": "cuonghuhuu",
+    "cuonghuhuu": "cuonghuhuu",
+}
+BOT_CONTRIBUTORS = {
+    "actions-user",
+    "github-actions[bot]",
+    "dependabot[bot]",
+}
+AUTO_COMMIT_MESSAGE_PHRASES = (
+    "auto update report",
+    "automatic report",
+    "generated report",
+)
 
 
 class GitHubAPIError(RuntimeError):
@@ -19,18 +38,306 @@ class GitHubAPIError(RuntimeError):
         self.detail = detail
 
 
+def tach_owner_repo_tu_chuoi(gia_tri):
+    """
+    Tach owner/repo tu URL GitHub, SSH URL hoac chuoi owner/repo.
+    Vi du hop le:
+    - https://github.com/owner/repo
+    - https://github.com/owner/repo.git
+    - git@github.com:owner/repo.git
+    - owner/repo
+    """
+    gia_tri = (gia_tri or "").strip()
+    if not gia_tri:
+        raise ValueError("Duong dan GitHub repository khong duoc de trong.")
+
+    if gia_tri.startswith("git@github.com:"):
+        path = gia_tri.split(":", 1)[1]
+    elif "://" in gia_tri:
+        parsed = urlparse(gia_tri)
+        netloc = parsed.netloc.lower()
+        if netloc not in {"github.com", "www.github.com"}:
+            raise ValueError("Chi ho tro URL repository tren github.com.")
+        path = parsed.path
+    else:
+        path = gia_tri
+
+    parts = [part for part in path.strip("/").split("/") if part]
+    if len(parts) < 2:
+        raise ValueError("URL GitHub repository phai co dang https://github.com/owner/repo.")
+
+    owner = parts[0].strip()
+    repo = parts[1].strip()
+    if repo.endswith(".git"):
+        repo = repo[:-4]
+
+    if not owner or not repo:
+        raise ValueError("Khong tach duoc Owner va Repository tu duong dan da nhap.")
+
+    return owner, repo
+
+
+def chuan_hoa_owner_repo(owner="", repo="", repo_url=""):
+    """
+    Chuan hoa thong tin repository.
+    Neu co repo_url thi uu tien repo_url. Neu repo rong va owner co dang URL
+    hoac owner/repo thi tu dong tach thanh owner va repo.
+    """
+    owner = (owner or "").strip()
+    repo = (repo or "").strip()
+    repo_url = (repo_url or "").strip()
+
+    if repo_url:
+        return tach_owner_repo_tu_chuoi(repo_url)
+
+    if not repo and owner and ("/" in owner or "github.com" in owner):
+        return tach_owner_repo_tu_chuoi(owner)
+
+    if not owner or not repo:
+        raise ValueError("Owner va Repository khong duoc de trong.")
+
+    return owner, repo
+
+
 def tao_headers(token=None):
     """
     Tao headers de goi GitHub API.
-    Token co the lay tu giao dien hoac bien moi truong GITHUB_TOKEN.
+    Phan biet ro:
+    - token is None: lay tu bien moi truong GITHUB_TOKEN neu co.
+    - token == "" hoac chi co khoang trang: co tinh khong dung token.
     """
-    headers = {"Accept": GITHUB_API_ACCEPT}
-    token = (token or os.getenv("GITHUB_TOKEN", "")).strip()
+    headers = {
+        "Accept": GITHUB_API_ACCEPT,
+        "User-Agent": GITHUB_USER_AGENT,
+    }
 
-    if token:
-        headers["Authorization"] = f"Bearer {token}"
+    if token is None:
+        token = os.getenv("GITHUB_TOKEN")
+
+    if token is not None:
+        token = token.strip()
+
+    if not token:
+        return headers
+
+    headers["Authorization"] = f"Bearer {token}"
 
     return headers
+
+
+def _lay_so_nguyen_an_toan(value, default=0):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _normalize_identity_text(value):
+    value = (value or "").strip().lower()
+    value = unicodedata.normalize("NFD", value)
+    value = "".join(ch for ch in value if unicodedata.category(ch) != "Mn")
+    value = re.sub(r"[^a-z0-9_./@+\-\[\] ]+", " ", value)
+    value = re.sub(r"\s+", " ", value)
+    return value.strip()
+
+
+def _identity_candidates(value):
+    normalized = _normalize_identity_text(value)
+    if not normalized:
+        return set()
+
+    candidates = {normalized}
+    if normalized in CONTRIBUTOR_ALIASES:
+        candidates.add(CONTRIBUTOR_ALIASES[normalized])
+
+    if "@" in normalized:
+        local_part = normalized.split("@", 1)[0]
+        candidates.add(local_part)
+        if "+" in local_part:
+            candidates.add(local_part.rsplit("+", 1)[-1])
+
+    return {candidate for candidate in candidates if candidate}
+
+
+def _la_github_login_hop_le(login):
+    normalized = _normalize_identity_text(login)
+    if not normalized:
+        return False
+
+    return normalized not in {"khong xac dinh", "unknown", "none", "null"}
+
+
+def _canonicalize_identity(value):
+    candidates = _identity_candidates(value)
+    for candidate in candidates:
+        if candidate in CONTRIBUTOR_ALIASES:
+            return CONTRIBUTOR_ALIASES[candidate]
+
+    normalized = _normalize_identity_text(value)
+    return CONTRIBUTOR_ALIASES.get(normalized, normalized)
+
+
+def _lay_alias_da_biet(*values):
+    for value in values:
+        for candidate in _identity_candidates(value):
+            if candidate in CONTRIBUTOR_ALIASES:
+                return CONTRIBUTOR_ALIASES[candidate]
+    return ""
+
+
+def _la_bot_identity(*values):
+    for value in values:
+        for candidate in _identity_candidates(value):
+            if candidate in BOT_CONTRIBUTORS or candidate.endswith("[bot]"):
+                return True
+    return False
+
+
+def la_commit_tu_dong(message):
+    normalized_message = _normalize_identity_text(message)
+    return any(phrase in normalized_message for phrase in AUTO_COMMIT_MESSAGE_PHRASES)
+
+
+def _lay_thong_tin_identity_raw(commit):
+    commit_info = commit.get("commit") or {}
+    if not isinstance(commit_info, dict):
+        commit_info = {}
+    commit_author = commit_info.get("author") or {}
+    commit_committer = commit_info.get("committer") or {}
+    github_author = commit.get("author") or {}
+    github_committer = commit.get("committer") or {}
+    if not isinstance(commit_author, dict):
+        commit_author = {}
+    if not isinstance(commit_committer, dict):
+        commit_committer = {}
+    if not isinstance(github_author, dict):
+        github_author = {}
+    if not isinstance(github_committer, dict):
+        github_committer = {}
+
+    return {
+        "github_login": (
+            commit.get("github_login")
+            or commit.get("author_login")
+            or github_author.get("login")
+            or ""
+        ),
+        "committer_login": (
+            commit.get("committer_login")
+            or github_committer.get("login")
+            or ""
+        ),
+        "author_name": (
+            commit.get("author_name")
+            or commit_author.get("name")
+            or commit.get("ten_hien_thi")
+            or commit.get("khoa_contributor")
+            or ""
+        ),
+        "author_email": (
+            commit.get("author_email")
+            or commit_author.get("email")
+            or ""
+        ),
+        "committer_name": (
+            commit.get("committer_name")
+            or commit_committer.get("name")
+            or ""
+        ),
+        "committer_email": (
+            commit.get("committer_email")
+            or commit_committer.get("email")
+            or ""
+        ),
+        "message": commit.get("message") or commit_info.get("message") or "",
+    }
+
+
+def normalize_contributor(commit):
+    """
+    Chuan hoa contributor cho mot commit.
+    Uu tien GitHub author login, sau do den email/name trong commit va alias da biet.
+    """
+    raw = _lay_thong_tin_identity_raw(commit)
+
+    github_login = raw["github_login"]
+    author_email = raw["author_email"]
+    author_name = raw["author_name"]
+    committer_login = raw["committer_login"]
+    committer_email = raw["committer_email"]
+    committer_name = raw["committer_name"]
+    alias_da_biet = _lay_alias_da_biet(
+        author_name,
+        author_email,
+        committer_name,
+        committer_email,
+    )
+
+    if _la_github_login_hop_le(github_login):
+        khoa_contributor = _canonicalize_identity(github_login)
+        ten_hien_thi = khoa_contributor
+    elif alias_da_biet:
+        khoa_contributor = alias_da_biet
+        ten_hien_thi = alias_da_biet
+    elif author_email:
+        khoa_contributor = _canonicalize_identity(author_email)
+        ten_hien_thi = (
+            khoa_contributor
+            if khoa_contributor != _normalize_identity_text(author_email)
+            else author_name or author_email
+        )
+    elif author_name:
+        khoa_contributor = _canonicalize_identity(author_name)
+        ten_hien_thi = khoa_contributor
+    elif _la_github_login_hop_le(committer_login):
+        khoa_contributor = _canonicalize_identity(committer_login)
+        ten_hien_thi = khoa_contributor
+    elif committer_email:
+        khoa_contributor = _canonicalize_identity(committer_email)
+        ten_hien_thi = (
+            khoa_contributor
+            if khoa_contributor != _normalize_identity_text(committer_email)
+            else committer_name or committer_email
+        )
+    elif committer_name:
+        khoa_contributor = _canonicalize_identity(committer_name)
+        ten_hien_thi = khoa_contributor
+    else:
+        khoa_contributor = "Khong xac dinh"
+        ten_hien_thi = "Khong xac dinh"
+
+    is_bot = _la_bot_identity(
+        github_login,
+        author_name,
+        author_email,
+        committer_login,
+        committer_name,
+        committer_email,
+        khoa_contributor,
+    )
+    is_auto_commit = la_commit_tu_dong(raw["message"])
+
+    ignored_reasons = []
+    if is_bot:
+        ignored_reasons.append("bot")
+    if is_auto_commit:
+        ignored_reasons.append("auto_commit")
+
+    return {
+        "khoa_contributor": khoa_contributor,
+        "ten_hien_thi": ten_hien_thi,
+        "github_login": github_login,
+        "author_name": author_name,
+        "author_email": author_email,
+        "committer_login": committer_login,
+        "committer_name": committer_name,
+        "committer_email": committer_email,
+        "message": raw["message"],
+        "is_bot": is_bot,
+        "is_auto_commit": is_auto_commit,
+        "is_ignored": bool(ignored_reasons),
+        "ignored_reasons": ignored_reasons,
+    }
 
 
 def rut_gon_noi_dung_loi(response):
@@ -135,18 +442,10 @@ def lay_thong_tin_repository(owner, repo, token=None):
 def lay_thong_tin_contributor(commit):
     """
     Tach khoa contributor noi bo va ten hien thi.
-    Uu tien GitHub login, fallback sang ten tac gia trong commit.
+    Uu tien GitHub login, fallback sang email/name va alias da biet.
     """
-    thong_tin_author = commit.get("author") or {}
-    thong_tin_commit_author = commit.get("commit", {}).get("author", {}) or {}
-
-    login = thong_tin_author.get("login")
-    ten_commit_author = thong_tin_commit_author.get("name")
-
-    khoa_contributor = login or ten_commit_author or "Khong xac dinh"
-    ten_hien_thi = login or ten_commit_author or "Khong xac dinh"
-
-    return khoa_contributor, ten_hien_thi
+    contributor = normalize_contributor(commit)
+    return contributor["khoa_contributor"], contributor["ten_hien_thi"]
 
 
 def lay_danh_sach_commit(owner, repo, so_luong=30, token=None):
@@ -175,13 +474,23 @@ def lay_danh_sach_commit(owner, repo, so_luong=30, token=None):
             break
 
         for commit in du_lieu:
-            khoa_contributor, ten_hien_thi = lay_thong_tin_contributor(commit)
+            contributor = normalize_contributor(commit)
             danh_sach_commit.append(
                 {
                     "sha": commit.get("sha"),
-                    "khoa_contributor": khoa_contributor,
-                    "ten_hien_thi": ten_hien_thi,
-                    "message": commit.get("commit", {}).get("message", ""),
+                    "khoa_contributor": contributor["khoa_contributor"],
+                    "ten_hien_thi": contributor["ten_hien_thi"],
+                    "github_login": contributor["github_login"],
+                    "author_name": contributor["author_name"],
+                    "author_email": contributor["author_email"],
+                    "committer_login": contributor["committer_login"],
+                    "committer_name": contributor["committer_name"],
+                    "committer_email": contributor["committer_email"],
+                    "message": contributor["message"],
+                    "is_bot": contributor["is_bot"],
+                    "is_auto_commit": contributor["is_auto_commit"],
+                    "is_ignored": contributor["is_ignored"],
+                    "ignored_reasons": contributor["ignored_reasons"],
                 }
             )
 
@@ -202,16 +511,28 @@ def lay_chi_tiet_commit(owner, repo, sha, token=None):
     files = du_lieu.get("files", []) or []
 
     danh_sach_file = []
+    files_detail = []
     for file_info in files:
         ten_file = file_info.get("filename")
         if ten_file:
             danh_sach_file.append(ten_file)
+            files_detail.append(
+                {
+                    "filename": ten_file,
+                    "status": file_info.get("status", ""),
+                    "additions": _lay_so_nguyen_an_toan(file_info.get("additions", 0)),
+                    "deletions": _lay_so_nguyen_an_toan(file_info.get("deletions", 0)),
+                    "changes": _lay_so_nguyen_an_toan(file_info.get("changes", 0)),
+                    "patch": file_info.get("patch", "") or "",
+                }
+            )
 
     return {
         "sha": du_lieu.get("sha"),
-        "additions": stats.get("additions", 0),
-        "deletions": stats.get("deletions", 0),
+        "additions": _lay_so_nguyen_an_toan(stats.get("additions", 0)),
+        "deletions": _lay_so_nguyen_an_toan(stats.get("deletions", 0)),
         "changed_files": danh_sach_file,
+        "files_detail": files_detail,
     }
 
 
@@ -232,19 +553,46 @@ def lay_danh_sach_commit_chi_tiet(
         if not sha:
             continue
 
+        metadata = {
+            "sha": sha,
+            "khoa_contributor": commit.get("khoa_contributor", "Khong xac dinh"),
+            "ten_hien_thi": commit.get("ten_hien_thi", "Khong xac dinh"),
+            "github_login": commit.get("github_login", ""),
+            "author_name": commit.get("author_name", ""),
+            "author_email": commit.get("author_email", ""),
+            "committer_login": commit.get("committer_login", ""),
+            "committer_name": commit.get("committer_name", ""),
+            "committer_email": commit.get("committer_email", ""),
+            "message": commit.get("message", ""),
+            "is_bot": bool(commit.get("is_bot", False)),
+            "is_auto_commit": bool(commit.get("is_auto_commit", False)),
+            "is_ignored": bool(commit.get("is_ignored", False)),
+            "ignored_reasons": commit.get("ignored_reasons", []),
+        }
+
+        if metadata["is_ignored"]:
+            ket_qua.append(
+                {
+                    **metadata,
+                    "additions": 0,
+                    "deletions": 0,
+                    "changed_files": [],
+                    "files_detail": [],
+                }
+            )
+            continue
+
         if progress_callback:
             progress_callback(f"Dang lay chi tiet commit {index}/{tong_commit}...")
 
         chi_tiet = lay_chi_tiet_commit(owner, repo, sha, token=token)
         ket_qua.append(
             {
-                "sha": sha,
-                "khoa_contributor": commit.get("khoa_contributor", "Khong xac dinh"),
-                "ten_hien_thi": commit.get("ten_hien_thi", "Khong xac dinh"),
-                "message": commit.get("message", ""),
+                **metadata,
                 "additions": chi_tiet.get("additions", 0),
                 "deletions": chi_tiet.get("deletions", 0),
                 "changed_files": chi_tiet.get("changed_files", []),
+                "files_detail": chi_tiet.get("files_detail", []),
             }
         )
 
