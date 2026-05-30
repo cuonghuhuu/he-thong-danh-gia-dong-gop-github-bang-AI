@@ -49,6 +49,10 @@ def xac_dinh_loai_dong_gop(item):
 def _mo_ta_muc_do_tham_gia(item):
     commit_count = item.get("commit_count", 0)
     final_score = item.get("final_score", item.get("score", 0))
+    integration_count = item.get("integration_commit_count", 0)
+
+    if integration_count >= 2 and commit_count >= 3:
+        return "tham gia đều và có vai trò tích hợp hệ thống trong quá trình hoàn thiện sản phẩm"
 
     if commit_count >= 5 and final_score >= 70:
         return "tham gia khá đều và có điểm tổng hợp tốt"
@@ -62,6 +66,10 @@ def _mo_ta_muc_do_tham_gia(item):
 def _mo_ta_chat_luong(item):
     quality_score = item.get("quality_score", 0)
     penalty_score = item.get("penalty_score", 0)
+    integration_count = item.get("integration_commit_count", 0)
+
+    if integration_count >= 2 and quality_score >= 60 and penalty_score < 18:
+        return "đóng góp có ích cho tích hợp hệ thống và hoàn thiện sản phẩm, vẫn cần giữ commit message rõ ràng"
 
     if quality_score >= 80 and penalty_score < 8:
         return "chất lượng đóng góp tốt, ít dấu hiệu commit kém chất lượng"
@@ -149,6 +157,11 @@ def _tao_commit_can_xem_lai(item):
 
 
 def _tao_goi_y(item):
+    integration_count = item.get("integration_commit_count", 0)
+    if integration_count >= 2 and item.get("suspicious_commit_count", 0) > 0:
+        return "cần cải thiện commit message nếu còn message ngắn và nên tách rõ commit merge, sửa lỗi, tài liệu để dễ kiểm chứng"
+    if integration_count >= 2:
+        return "nên tiếp tục tách commit tích hợp, sửa lỗi và cập nhật tài liệu thành các phần rõ ràng để thể hiện vai trò điều phối tốt hơn"
     if item.get("suspicious_commit_count", 0) > 0:
         return "nên viết commit message cụ thể hơn và hạn chế commit kiểu test/update/nộp nếu không mô tả rõ thay đổi"
     if item.get("source_file_count", 0) == 0:
@@ -176,7 +189,12 @@ def tao_noi_dung_nhan_xet(item):
 def tao_nhan_xet_ngan(item):
     quality_score = item.get("quality_score", 0)
     suspicious_count = item.get("suspicious_commit_count", 0)
+    integration_count = item.get("integration_commit_count", 0)
 
+    if integration_count >= 2:
+        if suspicious_count:
+            return f"Quality {quality_score:.1f}, có vai trò tích hợp; còn {suspicious_count} commit cần xem lại."
+        return f"Quality {quality_score:.1f}, có vai trò tích hợp hệ thống."
     if suspicious_count:
         return f"Quality {quality_score:.1f}, có {suspicious_count} commit cần xem lại."
     if item.get("source_file_count", 0) > item.get("document_file_count", 0):
@@ -266,6 +284,31 @@ def tao_nhan_xet_ai_rule_based(ket_qua_phan_tich):
         f"quality score {top.get('quality_score', 0):.2f}, "
         f"penalty {top.get('penalty_score', 0):.2f}."
     )
+    contributors_tich_hop = [
+        item
+        for item in contributors
+        if item.get("integration_commit_count", 0) >= 2
+    ]
+    if contributors_tich_hop:
+        mo_ta_tich_hop = "; ".join(
+            (
+                f"{item.get('contributor', 'Không xác định')} có "
+                f"{item.get('integration_commit_count', 0)} commit tích hợp, "
+                f"{item.get('core_code_commit_count', 0)} commit code lõi, "
+                f"{item.get('documentation_commit_count', 0)} commit tài liệu"
+            )
+            for item in contributors_tich_hop[:3]
+        )
+        vai_tro_tich_hop = (
+            "Vai trò tích hợp:\n"
+            f"{mo_ta_tich_hop}. Các nhận xét này dựa trên dữ liệu commit thực tế, "
+            "không ưu tiên contributor theo tên."
+        )
+    else:
+        vai_tro_tich_hop = (
+            "Vai trò tích hợp:\n"
+            "Chưa thấy contributor nào có nhiều commit tích hợp hợp lệ trong phạm vi phân tích."
+        )
 
     if suspicious_count > 0:
         goi_y = (
@@ -282,6 +325,7 @@ def tao_nhan_xet_ai_rule_based(ket_qua_phan_tich):
         [
             "Nhận xét tổng quan:\n" + tong_quan,
             "Contributor nổi bật:\n" + noi_bat,
+            vai_tro_tich_hop,
             "Gợi ý cải thiện:\n" + goi_y,
         ]
     )
